@@ -14,6 +14,9 @@ SR_DE_coding_challenge/
 │   ├── api/
 │   │   ├── __init__.py
 │   │   ├── models/
+│   │   │   ├── departments.py
+│   │   │   ├── jobs.py
+│   │   │   └── hired_employees.py
 │   │   ├── schemas/
 │   │   └── routes/
 │   └── tests/
@@ -61,46 +64,106 @@ Added essential packages in requirements.txt:
 - pytest
 - httpx
 
-## 4. FastAPI Initial Setup
+## 4. Database Models Implementation
+
+### 4.1 Dimensional Models
+Following dimensional modeling best practices:
+
+#### Department Dimension (dim_departments)
+- Table: `dim_departments`
+- Fields:
+  - `id_department` (Integer, Primary Key)
+  - `department` (String(100), Not Null)
+- Relationships:
+  - One-to-Many with `fact_hired_employees`
+- Features:
+  - String length validation (100 chars)
+  - SQLAlchemy ORM implementation
+  - Bidirectional relationship mapping
+
+#### Job Dimension (dim_jobs)
+- Table: `dim_jobs`
+- Fields:
+  - `id_job` (Integer, Primary Key)
+  - `job` (String(100), Not Null)
+- Relationships:
+  - One-to-Many with `fact_hired_employees`
+- Features:
+  - String length validation (100 chars)
+  - SQLAlchemy ORM implementation
+  - Bidirectional relationship mapping
+
+### 4.2 Fact Table
+- Table: `fact_hired_employees`
+- Primary Fields:
+  - `id_employee` (Primary Key)
+  - `name` (String(100))
+  - `datetime` (DateTime)
+  - `id_department` (Foreign Key)
+  - `id_job` (Foreign Key)
+- Features:
+  - Foreign key constraints
+  - Proper indexing strategy
+  - Type validations
+
+### 4.3 Model Implementation Details
+- Consistent naming conventions:
+  - PascalCase for classes (Department, Job, HiredEmployee)
+  - snake_case for database fields
+  - 'dim_' prefix for dimension tables
+  - 'fact_' prefix for fact tables
+- Documentation:
+  - Comprehensive docstrings
+  - Type hints
+  - Relationship documentation
+  - Debug-friendly string representations
+- Optimizations:
+  - Selective indexing strategy
+  - Efficient relationship mappings
+  - Appropriate data types
+
+## 5. FastAPI Initial Setup
 Created basic FastAPI application with:
 - Application instance with metadata
 - Health check endpoint
 - Basic routing structure
 - API documentation setup
 
-## 5. Version Control
-### 5.1 Git Configuration
+## 6. Version Control
+### 6.1 Git Configuration
 - Created .gitignore for Python, Docker, and macOS files
 - Initialized feature branch: feature/db_api_migration
 
-### 5.2 Initial Commit Structure
+### 6.2 Initial Commit Structure
 - Project structure
 - Docker configuration
 - Dependencies
 - Basic FastAPI setup
 - Documentation
 
-## 6. Environment Configuration
+## 7. Environment Configuration
 Set up environment variables for:
 - Database connection
 - PostgreSQL credentials
 - Application settings
 
 ## Next Steps
-1. Database Connection Setup
-   - SQLAlchemy configuration
-   - Alembic migrations
-   - Model creation
-
-2. API Development
-   - Data models implementation
-   - Schema validation
-   - Endpoint creation for:
+1. API Development
+   - Endpoint implementation for:
      - CSV data upload
      - Data queries
      - Analytics
+   - Input validation
+   - Error handling
+   - Rate limiting
 
-3. Testing
+2. Testing
    - Unit tests setup
    - Integration tests
-   - API testing 
+   - API testing
+   - Load testing
+
+3. Documentation
+   - API documentation (Swagger/OpenAPI)
+   - Deployment guide
+   - User manual 
