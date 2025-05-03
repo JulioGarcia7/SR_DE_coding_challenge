@@ -14,9 +14,14 @@ SR_DE_coding_challenge/
 │   ├── api/
 │   │   ├── __init__.py
 │   │   ├── models/
-│   │   │   ├── departments.py
-│   │   │   ├── jobs.py
-│   │   │   └── hired_employees.py
+│   │   │   ├── bronze/
+│   │   │   │   ├── stg_departments.py
+│   │   │   │   ├── stg_jobs.py
+│   │   │   │   └── stg_hired_employees.py
+│   │   │   └── silver/
+│   │   │       ├── dim_departments.py
+│   │   │       ├── dim_jobs.py
+│   │   │       └── fact_hired_employees.py
 │   │   ├── schemas/
 │   │   └── routes/
 │   └── tests/
@@ -66,7 +71,22 @@ Added essential packages in requirements.txt:
 
 ## 4. Database Models Implementation
 
-### 4.1 Dimensional Models
+### 4.1 Data Architecture
+Following a two-layer medallion architecture:
+
+#### Bronze Layer (Staging)
+- Raw data ingestion
+- All fields as strings for maximum flexibility
+- Status tracking and error handling
+- No data transformations at this stage
+
+#### Silver Layer (Dimensional Model)
+- Validated and transformed data
+- Proper data types and constraints
+- Business rules implementation
+- Relationships and foreign keys
+
+### 4.2 Dimensional Models
 Following dimensional modeling best practices:
 
 #### Department Dimension (dim_departments)
@@ -93,7 +113,7 @@ Following dimensional modeling best practices:
   - SQLAlchemy ORM implementation
   - Bidirectional relationship mapping
 
-### 4.2 Fact Table
+### 4.3 Fact Table
 - Table: `fact_hired_employees`
 - Primary Fields:
   - `id_employee` (Primary Key)
@@ -106,10 +126,11 @@ Following dimensional modeling best practices:
   - Proper indexing strategy
   - Type validations
 
-### 4.3 Model Implementation Details
+### 4.4 Model Implementation Details
 - Consistent naming conventions:
   - PascalCase for classes (Department, Job, HiredEmployee)
   - snake_case for database fields
+  - 'stg_' prefix for staging tables
   - 'dim_' prefix for dimension tables
   - 'fact_' prefix for fact tables
 - Documentation:
