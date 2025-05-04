@@ -8,7 +8,7 @@ Classes:
     Settings: Main configuration class that inherits from BaseSettings.
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
@@ -33,9 +33,7 @@ class Settings(BaseSettings):
     api_v1_str: str = "/api/v1"
     project_name: str = "Globant Data Migration API"
     
-    class Config:
-        """Pydantic configuration class"""
-        case_sensitive = True
+    model_config = SettingsConfigDict(case_sensitive=True)
 
 # Create a global settings object
 settings = Settings()

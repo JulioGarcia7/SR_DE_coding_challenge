@@ -5,6 +5,7 @@ This module contains base Pydantic models and common configurations for all sche
 """
 
 from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 class BaseSchema(BaseModel):
