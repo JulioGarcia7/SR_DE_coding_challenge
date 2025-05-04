@@ -7,9 +7,9 @@ This module exports all models following the medallion architecture:
 """
 
 # Bronze Layer (Staging)
-from app.api.models.bronze.stg_departments import StgDepartment
-from app.api.models.bronze.stg_jobs import StgJob
-from app.api.models.bronze.stg_hired_employees import StgHiredEmployee
+from app.api.models.bronze.stg_departments import StgDepartments
+from app.api.models.bronze.stg_jobs import StgJobs
+from app.api.models.bronze.stg_hired_employees import StgHiredEmployees
 
 # # Silver Layer (Dimensions and Facts) - Commented out for now
 # from app.api.models.silver.dim_departments import Department
@@ -18,9 +18,9 @@ from app.api.models.bronze.stg_hired_employees import StgHiredEmployee
 
 __all__ = [
     # Bronze Layer
-    "StgDepartment",
-    "StgJob",
-    "StgHiredEmployee",
+    "StgDepartments",
+    "StgJobs",
+    "StgHiredEmployees",
     
     # # Silver Layer (Dimensions and Facts) - Commented out for now
     # "Department",  # from dim_departments
