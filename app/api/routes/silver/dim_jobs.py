@@ -1,8 +1,8 @@
 """
 Job Silver Layer Routes
 
-This module handles the transformation and loading of job data
-from the bronze (staging) layer to the silver (dimensional) layer.
+This module handles the transformation of job data
+from bronze (staging) to silver (dimensional) layer.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,16 +20,11 @@ async def merge_jobs(db: Session = Depends(get_db)):
     
     This endpoint:
     1. Transforms staging data to match dimensional model
-    2. Performs upsert operation (update existing, insert new)
-    3. Validates data quality
-    4. Returns merge statistics
+    2. Performs upsert operation
+    3. Returns merge statistics
     
     Returns:
-        dict: Statistics about the merge operation including:
-            - Total records processed
-            - Records inserted
-            - Records updated
-            - Operation status
+        dict: Statistics about the merge operation
     """
     try:
         # Get initial count
@@ -37,56 +32,53 @@ async def merge_jobs(db: Session = Depends(get_db)):
             text("SELECT COUNT(*) FROM dim_jobs")
         ).scalar()
 
-        # Perform the merge using PostgreSQL 15 MERGE syntax
-        merge_query = text("""
-            WITH stg AS (
-                SELECT CAST(id AS INTEGER) AS id_job, job
-                FROM stg_jobs
-            )
-            MERGE INTO dim_jobs AS target
-            USING stg AS source
-            ON target.id_job = source.id_job
-            WHEN MATCHED AND target.job IS DISTINCT FROM source.job THEN
-                UPDATE SET job = source.job
-            WHEN NOT MATCHED THEN
-                INSERT (id_job, job)
-                VALUES (source.id_job, source.job);
-        """)
+        # Perform MERGE operation
+        merge_query = """
+        WITH staging_data AS (
+            SELECT DISTINCT
+                id::integer as id_job,
+                job
+            FROM stg_jobs
+            WHERE id IS NOT NULL
+        )
+        MERGE INTO dim_jobs d
+        USING staging_data s ON d.id_job = s.id_job
+        WHEN MATCHED THEN
+            UPDATE SET job = s.job
+        WHEN NOT MATCHED THEN
+            INSERT (id_job, job)
+            VALUES (s.id_job, s.job);
+        """
         
-        # Execute merge
-        db.execute(merge_query)
+        db.execute(text(merge_query))
+        
+        # Get statistics
+        stats_query = """
+        SELECT 
+            (SELECT COUNT(*) FROM dim_jobs) as final_count,
+            (SELECT COUNT(*) FROM stg_jobs) as total_processed,
+            (
+                SELECT COUNT(*) 
+                FROM dim_jobs d
+                WHERE EXISTS (
+                    SELECT 1 FROM stg_jobs s
+                    WHERE s.id::integer = d.id_job
+                )
+            ) as matched_count
+        """
+        
+        stats = db.execute(text(stats_query)).fetchone()
+        
         db.commit()
-        
-        # Get final count and calculate statistics
-        final_count = db.execute(
-            text("SELECT COUNT(*) FROM dim_jobs")
-        ).scalar()
-        
-        # Get counts for detailed statistics
-        stats_query = text("""
-            WITH stg AS (
-                SELECT CAST(id AS INTEGER) AS id_job, job
-                FROM stg_jobs
-            )
-            SELECT 
-                COUNT(*) as total_source,
-                COUNT(*) - COUNT(target.id_job) as inserted,
-                COUNT(target.id_job) as matched
-            FROM stg
-            LEFT JOIN dim_jobs target 
-            ON target.id_job = stg.id_job;
-        """)
-        
-        stats = db.execute(stats_query).fetchone()
         
         return {
             "message": "Jobs merged successfully",
             "statistics": {
                 "initial_count": initial_count,
-                "final_count": final_count,
-                "total_processed": stats.total_source,
-                "inserted": stats.inserted,
-                "updated": stats.matched
+                "final_count": stats.final_count,
+                "total_processed": stats.total_processed,
+                "inserted": stats.final_count - initial_count,
+                "updated": stats.matched_count
             },
             "status": "success"
         }
@@ -95,5 +87,8 @@ async def merge_jobs(db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(
             status_code=500,
-            detail=f"Error merging jobs: {str(e)}"
+            detail={
+                "message": "Error during merge operation",
+                "error": str(e)
+            }
         ) 
