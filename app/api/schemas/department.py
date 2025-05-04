@@ -8,7 +8,7 @@ Currently only includes Bronze (staging) layer schemas.
 from pydantic import Field
 from app.api.schemas.base import BaseSchema
 
-class StgDepartmentBase(BaseSchema):
+class StgDepartmentsBase(BaseSchema):
     """Base schema for Staging Department with raw attributes from CSV."""
     id: str = Field(
         ...,

@@ -11,7 +11,7 @@ from pydantic import Field, field_validator, ConfigDict
 from app.api.schemas.base import BaseSchema
 
 # Bronze Layer (Staging) Schemas
-class StgHiredEmployeeBase(BaseSchema):
+class StgHiredEmployeesBase(BaseSchema):
     """Base schema for Staging Hired Employee with raw attributes from CSV."""
     id: str = Field(
         ...,

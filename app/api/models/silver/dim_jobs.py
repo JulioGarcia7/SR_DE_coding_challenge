@@ -1,35 +1,44 @@
 """
-Job model module.
+Dimensional Job Model Module
 
-This module defines the Job model for the database using SQLAlchemy ORM.
-Follows dimensional modeling naming convention with 'dim_' prefix.
+This module defines the Job dimension model using SQLAlchemy ORM.
+Part of the silver layer in the medallion architecture.
 """
 
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 from app.core.database import base
 
-class Job(base):
+class DimJobs(base):
     """
-    Job model class.
+    Job Dimension Model (Silver Layer)
     
-    Represents a job dimension in the organization.
+    Represents the job position dimension in the organization's data warehouse.
+    Contains cleaned and validated job position data.
     
     Attributes:
-        id_job (int): The primary key of the job
-        job (str): The name or title of the job position (max 100 characters)
-        employees (list): List of employees in this job position
+        id_job (int): Primary key and surrogate key for the job position
+        job (str): Official title of the job position (max 100 characters)
+        employees (list): One-to-many relationship with hired employees
+    
+    Relationships:
+        - One job can have many employees (one-to-many with fact_hired_employees)
     
     Table name: dim_jobs
     """
     __tablename__ = "dim_jobs"
     
+    # Dimensional attributes
     id_job = Column(Integer, primary_key=True)
     job = Column(String(100), nullable=False)
     
     # Relationships
-    employees = relationship("HiredEmployee", back_populates="job")
+    employees = relationship(
+        "FactHiredEmployees", 
+        backref="job",
+        lazy="dynamic"  # Lazy loading for better performance
+    )
     
     def __repr__(self):
-        """String representation of the Job model."""
+        """Returns a string representation of the Job dimension."""
         return f"<{self.__tablename__}(id={self.id_job}, job={self.job})>" 

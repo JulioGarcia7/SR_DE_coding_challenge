@@ -12,11 +12,11 @@ import io
 from sqlalchemy import text
 
 from app.core.database import get_db
-from app.api.models.bronze.stg_departments import StgDepartment
-from app.api.schemas.staging import StgDepartmentCreate, BatchUploadResponse
+from app.api.models.bronze.stg_departments import StgDepartments
+from app.api.schemas.staging import StgDepartmentsCreate, BatchUploadResponse
 
 router = APIRouter(
-    prefix="/bronze/upload/departments",
+    prefix="/upload/departments",
     tags=["bronze-upload"],
     responses={404: {"description": "Not found"}}
 )
@@ -133,8 +133,8 @@ async def process_department_batch(
     try:
         for dept_data in batch_data:
             # Check if department already exists
-            existing = db.query(StgDepartment).filter(
-                StgDepartment.id == dept_data["id"]
+            existing = db.query(StgDepartments).filter(
+                StgDepartments.id == dept_data["id"]
             ).first()
             
             if existing:
@@ -143,7 +143,7 @@ async def process_department_batch(
                     setattr(existing, key, value)
             else:
                 # Create new record
-                db_department = StgDepartment(**dept_data)
+                db_department = StgDepartments(**dept_data)
                 db.add(db_department)
         
         db.commit()

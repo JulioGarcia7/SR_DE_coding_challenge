@@ -7,15 +7,15 @@ Currently only includes Bronze (staging) layer schemas.
 
 from app.api.schemas.base import BaseSchema, TimestampMixin
 from app.api.schemas.department import (
-    StgDepartmentBase,
+    StgDepartmentsBase,
     # DimDepartmentBase, DimDepartmentCreate, DimDepartmentRead
 )
 from app.api.schemas.job import (
-    StgJobBase,
+    StgJobsBase,
     # DimJobBase, DimJobCreate, DimJobRead
 )
 from app.api.schemas.hired_employee import (
-    StgHiredEmployeeBase,
+    StgHiredEmployeesBase,
     # FactHiredEmployeeBase, FactHiredEmployeeCreate, FactHiredEmployeeRead,
     # FactHiredEmployeeBatchCreate
 )
@@ -26,9 +26,9 @@ __all__ = [
     'TimestampMixin',
     
     # Bronze Layer (Staging) schemas
-    'StgDepartmentBase',
-    'StgJobBase',
-    'StgHiredEmployeeBase',
+    'StgDepartmentsBase',
+    'StgJobsBase',
+    'StgHiredEmployeesBase',
     
     # # Silver Layer (Dimensional) schemas - Commented out for now
     # 'DimDepartmentBase',

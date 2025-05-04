@@ -1,29 +1,39 @@
 """
-Models package initialization.
+Data Warehouse Models Package
 
-This module exports all models following the medallion architecture:
-- Bronze Layer: Raw/staging data (bronze_*)
-# - Silver Layer: Validated dimensional models (dim_*, fact_*) - Commented out for now
+This package implements the medallion architecture pattern:
+
+Bronze Layer (Staging):
+    - Raw data landing zone (stg_*)
+    - Minimal transformations
+    - Original data types preserved
+    - No relationships enforced
+
+Silver Layer:
+    - Dimensions (dim_*): Clean, deduplicated reference data
+    - Facts (fact_*): Clean, validated business events
+    - Proper data types and relationships
+    - Business rules enforced
 """
 
-# Bronze Layer (Staging)
-from app.api.models.bronze.stg_departments import StgDepartment
-from app.api.models.bronze.stg_jobs import StgJob
-from app.api.models.bronze.stg_hired_employees import StgHiredEmployee
+# Bronze Layer (Staging Models)
+from app.api.models.bronze.stg_departments import StgDepartments
+from app.api.models.bronze.stg_jobs import StgJobs
+from app.api.models.bronze.stg_hired_employees import StgHiredEmployees
 
-# # Silver Layer (Dimensions and Facts) - Commented out for now
-# from app.api.models.silver.dim_departments import Department
-# from app.api.models.silver.dim_jobs import Job
-# from app.api.models.silver.fact_hired_employees import HiredEmployee
+# Silver Layer (Dimensional Models)
+from app.api.models.silver.dim_departments import DimDepartments
+from app.api.models.silver.dim_jobs import DimJobs
+from app.api.models.silver.fact_hired_employees import FactHiredEmployees
 
 __all__ = [
-    # Bronze Layer
-    "StgDepartment",
-    "StgJob",
-    "StgHiredEmployee",
+    # Bronze Layer - Staging Tables
+    "StgDepartments",  # Raw department data
+    "StgJobs",        # Raw job position data
+    "StgHiredEmployees",  # Raw employee hiring events
     
-    # # Silver Layer (Dimensions and Facts) - Commented out for now
-    # "Department",  # from dim_departments
-    # "Job",        # from dim_jobs
-    # "HiredEmployee",  # from fact_hired_employees
+    # Silver Layer - Dimensional Model
+    "DimDepartments",  # Department dimension
+    "DimJobs",        # Job position dimension
+    "FactHiredEmployees"  # Employee hiring fact table
 ]
