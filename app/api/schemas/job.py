@@ -8,7 +8,7 @@ Currently only includes Bronze (staging) layer schemas.
 from pydantic import Field
 from app.api.schemas.base import BaseSchema
 
-class StgJobBase(BaseSchema):
+class StgJobsBase(BaseSchema):
     """Base schema for Staging Job with raw attributes from CSV."""
     id: str = Field(
         ...,

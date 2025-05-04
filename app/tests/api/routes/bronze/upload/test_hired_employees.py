@@ -9,7 +9,7 @@ import csv
 
 from app.main import app
 from app.core.database import get_db, Base, engine
-from app.api.models.bronze.stg_hired_employees import StgHiredEmployee
+from app.api.models.bronze.stg_hired_employees import StgHiredEmployees
 
 client = TestClient(app)
 

@@ -8,7 +8,7 @@ All fields except id are stored as strings in the bronze layer and are nullable.
 from sqlalchemy import Column, String
 from app.core.database import base
 
-class StgDepartment(base):
+class StgDepartments(base):
     """
     Staging Department model class (Bronze Layer).
     

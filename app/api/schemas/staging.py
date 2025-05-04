@@ -8,37 +8,37 @@ Only validates field names and stores everything as strings for the bronze layer
 from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
 
-class StgDepartmentBase(BaseModel):
+class StgDepartmentsBase(BaseModel):
     """Base schema for staging department data."""
     id: str
     department: str
 
     model_config = ConfigDict(from_attributes=True)
 
-class StgDepartmentCreate(StgDepartmentBase):
+class StgDepartmentsCreate(StgDepartmentsBase):
     """Schema for creating staging department data."""
     pass
 
-class StgDepartment(StgDepartmentBase):
+class StgDepartments(StgDepartmentsBase):
     """Schema for reading staging department data."""
     pass
 
-class StgJobBase(BaseModel):
+class StgJobsBase(BaseModel):
     """Base schema for staging job data."""
     id: str
     job: str
 
     model_config = ConfigDict(from_attributes=True)
 
-class StgJobCreate(StgJobBase):
+class StgJobsCreate(StgJobsBase):
     """Schema for creating staging job data."""
     pass
 
-class StgJob(StgJobBase):
+class StgJobs(StgJobsBase):
     """Schema for reading staging job data."""
     pass
 
-class StgHiredEmployeeBase(BaseModel):
+class StgHiredEmployeesBase(BaseModel):
     """Base schema for staging hired employee data."""
     id: str
     name: Optional[str] = None
@@ -48,11 +48,11 @@ class StgHiredEmployeeBase(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class StgHiredEmployeeCreate(StgHiredEmployeeBase):
+class StgHiredEmployeesCreate(StgHiredEmployeesBase):
     """Schema for creating staging hired employee data."""
     pass
 
-class StgHiredEmployee(StgHiredEmployeeBase):
+class StgHiredEmployees(StgHiredEmployeesBase):
     """Schema for reading staging hired employee data."""
     pass
 

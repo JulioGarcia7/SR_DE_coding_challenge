@@ -13,7 +13,7 @@ from datetime import datetime
 from sqlalchemy import text
 
 from app.core.database import get_db
-from app.api.models.bronze.stg_hired_employees import StgHiredEmployee
+from app.api.models.bronze.stg_hired_employees import StgHiredEmployees
 
 router = APIRouter(
     prefix="/bronze/upload/hired_employees",
@@ -174,8 +174,8 @@ async def process_employee_batch(
     try:
         for employee_data in batch_data:
             # Check if employee already exists
-            existing = db.query(StgHiredEmployee).filter(
-                StgHiredEmployee.id == employee_data["id"]
+            existing = db.query(StgHiredEmployees).filter(
+                StgHiredEmployees.id == employee_data["id"]
             ).first()
             
             if existing:
@@ -184,7 +184,7 @@ async def process_employee_batch(
                     setattr(existing, key, value)
             else:
                 # Create new record
-                db_employee = StgHiredEmployee(**employee_data)
+                db_employee = StgHiredEmployees(**employee_data)
                 db.add(db_employee)
         
         db.commit()

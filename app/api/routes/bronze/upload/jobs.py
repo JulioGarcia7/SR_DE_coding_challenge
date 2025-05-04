@@ -12,8 +12,8 @@ import io
 from sqlalchemy import text
 
 from app.core.database import get_db
-from app.api.models.bronze.stg_jobs import StgJob
-from app.api.schemas.staging import StgJobCreate
+from app.api.models.bronze.stg_jobs import StgJobs
+from app.api.schemas.staging import StgJobsCreate
 
 router = APIRouter(
     prefix="/bronze/upload/jobs",
@@ -134,8 +134,8 @@ async def process_job_batch(
     try:
         for job_data in batch_data:
             # Check if job already exists
-            existing = db.query(StgJob).filter(
-                StgJob.id == job_data["id"]
+            existing = db.query(StgJobs).filter(
+                StgJobs.id == job_data["id"]
             ).first()
             
             if existing:
@@ -144,7 +144,7 @@ async def process_job_batch(
                     setattr(existing, key, value)
             else:
                 # Create new record
-                db_job = StgJob(**job_data)
+                db_job = StgJobs(**job_data)
                 db.add(db_job)
         
         db.commit()
