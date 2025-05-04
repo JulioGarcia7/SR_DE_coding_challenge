@@ -3,7 +3,7 @@ Models package initialization.
 
 This module exports all models following the medallion architecture:
 - Bronze Layer: Raw/staging data (bronze_*)
-# - Silver Layer: Validated dimensional models (dim_*, fact_*) - Commented out for now
+- Silver Layer: Validated dimensional models (dim_*)
 """
 
 # Bronze Layer (Staging)
@@ -11,10 +11,9 @@ from app.api.models.bronze.stg_departments import StgDepartments
 from app.api.models.bronze.stg_jobs import StgJobs
 from app.api.models.bronze.stg_hired_employees import StgHiredEmployees
 
-# # Silver Layer (Dimensions and Facts) - Commented out for now
-# from app.api.models.silver.dim_departments import Department
-# from app.api.models.silver.dim_jobs import Job
-# from app.api.models.silver.fact_hired_employees import HiredEmployee
+# Silver Layer (Dimensions)
+from app.api.models.silver.dim_departments import DimDepartments
+from app.api.models.silver.dim_jobs import DimJobs
 
 __all__ = [
     # Bronze Layer
@@ -22,8 +21,7 @@ __all__ = [
     "StgJobs",
     "StgHiredEmployees",
     
-    # # Silver Layer (Dimensions and Facts) - Commented out for now
-    # "Department",  # from dim_departments
-    # "Job",        # from dim_jobs
-    # "HiredEmployee",  # from fact_hired_employees
+    # Silver Layer (Dimensions)
+    "DimDepartments",
+    "DimJobs"
 ]
