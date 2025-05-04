@@ -1,14 +1,16 @@
 """
-API routes package.
+API Routes Package
 
-This package contains all the API routes for the application.
-Currently only includes Bronze (staging) layer routes.
+This package contains all API routes organized by layer:
+- Bronze: Raw data ingestion
+- Silver: Dimensional model operations
 """
 
 from fastapi import APIRouter
-from .bronze import router as bronze_router
-# from .silver import router as silver_router
+from app.api.routes.bronze import router as bronze_router
+from app.api.routes.silver import router as silver_router
 
 router = APIRouter()
-router.include_router(bronze_router)
-# router.include_router(silver_router)
+
+router.include_router(bronze_router, prefix="/bronze")
+router.include_router(silver_router, prefix="/silver")

@@ -16,7 +16,7 @@ from app.api.models.bronze.stg_jobs import StgJobs
 from app.api.schemas.staging import StgJobsCreate
 
 router = APIRouter(
-    prefix="/bronze/upload/jobs",
+    prefix="/upload/jobs",
     tags=["bronze-upload"],
     responses={404: {"description": "Not found"}}
 )

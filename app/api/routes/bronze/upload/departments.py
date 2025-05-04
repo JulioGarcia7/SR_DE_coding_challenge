@@ -16,7 +16,7 @@ from app.api.models.bronze.stg_departments import StgDepartments
 from app.api.schemas.staging import StgDepartmentsCreate, BatchUploadResponse
 
 router = APIRouter(
-    prefix="/bronze/upload/departments",
+    prefix="/upload/departments",
     tags=["bronze-upload"],
     responses={404: {"description": "Not found"}}
 )
