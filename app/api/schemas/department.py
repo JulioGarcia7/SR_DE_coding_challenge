@@ -18,25 +18,3 @@ class StgDepartmentsBase(BaseSchema):
         ...,
         description="Name of the department from CSV"
     )
-
-# # Silver Layer (Dimensional) Schemas - Commented out for now
-# class DimDepartmentBase(BaseSchema):
-#     """Base schema for Dimensional Department with common attributes."""
-#     department_name: str = Field(
-#         ...,
-#         min_length=1,
-#         max_length=100,
-#         description="The name of the department"
-#     )
-
-# class DimDepartmentCreate(DimDepartmentBase):
-#     """Schema for creating a new dimensional department record."""
-#     pass
-
-# class DimDepartmentRead(DimDepartmentBase):
-#     """Schema for reading dimensional department data."""
-#     id_department: int = Field(
-#         ...,
-#         gt=0,
-#         description="The unique identifier of the department"
-#     ) 
