@@ -16,7 +16,7 @@ from app.core.database import get_db
 from app.api.models.bronze.stg_hired_employees import StgHiredEmployees
 
 router = APIRouter(
-    prefix="/upload/hired_employees",
+    prefix="/upload/hired_employees_csv",
     tags=["bronze-upload"],
     responses={404: {"description": "Not found"}}
 )
