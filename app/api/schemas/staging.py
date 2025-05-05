@@ -33,10 +33,10 @@ class StgJobsCreate(StgJobsBase):
 class StgHiredEmployeesBase(BaseModel):
     """Base schema for staging hired employee data."""
     id: str
-    name: Optional[str] = None
-    datetime: Optional[str] = None
-    department_id: Optional[str] = None
-    job_id: Optional[str] = None
+    name: str
+    datetime: str
+    department_id: str
+    job_id: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,8 +47,9 @@ class StgHiredEmployeesCreate(StgHiredEmployeesBase):
 class BatchUploadResponse(BaseModel):
     """Schema for batch upload response."""
     message: str
-    rows_processed: int
-    success: bool
+    total_processed: int
+    total_batches: int
     progress: List[str]
+    errors: List[dict] = []
 
     model_config = ConfigDict(from_attributes=True) 

@@ -50,6 +50,35 @@ def validate_row(row: List[str], row_num: int) -> Tuple[Optional[Dict], Optional
         }
     
     try:
+        # Validate required fields
+        if not row[0]:  # id
+            return None, {
+                "row": row_num,
+                "data": row,
+                "error": "Missing required field: id"
+            }
+        
+        if not row[1]:  # name
+            return None, {
+                "row": row_num,
+                "data": row,
+                "error": "Missing required field: name"
+            }
+        
+        if not row[3]:  # department_id
+            return None, {
+                "row": row_num,
+                "data": row,
+                "error": "Missing required field: department_id"
+            }
+        
+        if not row[4]:  # job_id
+            return None, {
+                "row": row_num,
+                "data": row,
+                "error": "Missing required field: job_id"
+            }
+        
         # Convert all IDs to strings
         employee_data = {
             "id": str(row[0]),

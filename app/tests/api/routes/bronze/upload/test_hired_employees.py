@@ -8,7 +8,7 @@ from io import StringIO
 import csv
 
 from app.main import app
-from app.core.database import get_db, Base, engine
+from app.core.database import get_db, base, engine
 from app.api.models.bronze.stg_hired_employees import StgHiredEmployees
 
 client = TestClient(app)
@@ -16,9 +16,9 @@ client = TestClient(app)
 @pytest.fixture(scope="function")
 def test_db():
     """Create test database tables before each test and drop them after."""
-    Base.metadata.create_all(bind=engine)
+    base.metadata.create_all(bind=engine)
     yield
-    Base.metadata.drop_all(bind=engine)
+    base.metadata.drop_all(bind=engine)
 
 def create_test_csv(data: list) -> StringIO:
     """Create a CSV file in memory from test data."""
@@ -38,7 +38,7 @@ def test_upload_valid_data(test_db):
     csv_file = create_test_csv(test_data)
     
     response = client.post(
-        "/api/v1/bronze/upload/hired_employees",
+        "/api/v1/bronze/upload/hired_employees_csv/",
         files={"file": ("test.csv", csv_file.getvalue(), "text/csv")}
     )
     
@@ -58,14 +58,14 @@ def test_upload_with_null_values(test_db):
     csv_file = create_test_csv(test_data)
     
     response = client.post(
-        "/api/v1/bronze/upload/hired_employees",
+        "/api/v1/bronze/upload/hired_employees_csv/",
         files={"file": ("test.csv", csv_file.getvalue(), "text/csv")}
     )
     
     assert response.status_code == 201
     assert len(response.json()["errors"]) == 4  # All rows should be in errors
     for error in response.json()["errors"]:
-        assert "Invalid" in error["error"] or "missing" in error["error"]
+        assert "Invalid" in error["error"] or "Missing" in error["error"]
 
 def test_upload_invalid_date_format(test_db):
     """Test handling of invalid date formats."""
@@ -77,7 +77,7 @@ def test_upload_invalid_date_format(test_db):
     csv_file = create_test_csv(test_data)
     
     response = client.post(
-        "/api/v1/bronze/upload/hired_employees",
+        "/api/v1/bronze/upload/hired_employees_csv/",
         files={"file": ("test.csv", csv_file.getvalue(), "text/csv")}
     )
     
@@ -96,7 +96,7 @@ def test_upload_batch_size_limit(test_db):
     csv_file = create_test_csv(test_data)
     
     response = client.post(
-        "/api/v1/bronze/upload/hired_employees",
+        "/api/v1/bronze/upload/hired_employees_csv/",
         files={"file": ("test.csv", csv_file.getvalue(), "text/csv")}
     )
     
@@ -107,7 +107,7 @@ def test_upload_batch_size_limit(test_db):
 def test_upload_invalid_file_format(test_db):
     """Test rejection of non-CSV files."""
     response = client.post(
-        "/api/v1/bronze/upload/hired_employees",
+        "/api/v1/bronze/upload/hired_employees_csv/",
         files={"file": ("test.txt", "invalid content", "text/plain")}
     )
     
@@ -123,7 +123,7 @@ def test_upload_invalid_column_count(test_db):
     csv_file = create_test_csv(test_data)
     
     response = client.post(
-        "/api/v1/bronze/upload/hired_employees",
+        "/api/v1/bronze/upload/hired_employees_csv/",
         files={"file": ("test.csv", csv_file.getvalue(), "text/csv")}
     )
     
