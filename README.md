@@ -1,107 +1,186 @@
 # SR_DE_coding_challenge
 
 ## Project Overview
-This project implements a data migration API following a two-layer medallion architecture for efficient data processing and analytics. It provides endpoints for data ingestion, transformation, and dimensional modeling.
+This project implements a data migration API following a two-layer medallion architecture for efficient data processing and analytics. The system processes employee hiring data through a robust ETL pipeline, transforming raw CSV data into a dimensional model suitable for analysis.
 
-## Architecture
-The project follows a medallion architecture with two layers:
+## Architecture Flow Diagram
+```
+[Inicio] → [Archivos CSV]
+    ↓
+[Bronze Layer (Staging)]
+    │
+    ├─→ [stg_departments]
+    │       - id (STRING)
+    │       - department (STRING)
+    │
+    ├─→ [stg_jobs]
+    │       - id (STRING)
+    │       - job (STRING)
+    │
+    └─→ [stg_hired_employees]
+            - id (STRING)
+            - name (STRING)
+            - datetime (STRING)
+            - department_id (STRING)
+            - job_id (STRING)
+            
+    ↓ [Transformación y Validación]
+    
+[Silver Layer (Dimensional Model)]
+    │
+    ├─→ [dim_departments]
+    │       - id_department (INTEGER PK)
+    │       - department (VARCHAR)
+    │
+    ├─→ [dim_jobs]
+    │       - id_job (INTEGER PK)
+    │       - job (VARCHAR)
+    │
+    └─→ [fact_hired_employees]
+            - id_employee (INTEGER PK)
+            - name (VARCHAR)
+            - hire_datetime (TIMESTAMP)
+            - id_department (INTEGER FK)
+            - id_job (INTEGER FK)
+            
+    ↓ [Análisis y Reportes]
+    
+[API Endpoints]
+    │
+    ├─→ [Bronze Layer API]
+    │       POST /api/v1/bronze/upload/{entity}/
+    │
+    └─→ [Silver Layer API]
+            POST /api/v1/silver/{entity}/merge
+```
+
+## Architecture Details
 
 ### Bronze Layer (Staging)
-- Raw data ingestion layer
-- Preserves source data in its original form
-- All fields stored as strings
-- Includes data quality tracking
-- Tables prefixed with 'stg_'
-- Bulk upload functionality with batch processing
-- Data validation and error reporting
+The Bronze layer serves as the initial landing zone for raw data:
+- Accepts CSV file uploads through API endpoints
+- Preserves source data in its original form (all fields as strings)
+- Implements basic validation for file format and structure
+- Provides batch processing capabilities for large datasets
+- Tracks data quality metrics and upload statistics
+- Tables are prefixed with 'stg_' for clear identification
 
 ### Silver Layer (Dimensional Model)
-- Clean, validated data
-- Proper data types and constraints
-- Dimensional modeling (star schema)
-- Business rules implemented
-- Tables prefixed with 'dim_' for dimensions and 'fact_' for facts
-- MERGE operations with detailed statistics
-- Referential integrity enforcement
+The Silver layer implements a star schema for analytical queries:
+- Transforms and cleanses data from Bronze layer
+- Enforces proper data types and constraints
+- Implements business rules and data validation
+- Maintains referential integrity
+- Provides detailed merge statistics
+- Uses 'dim_' prefix for dimensions and 'fact_' for fact tables
 
-## Process Flow
-1. Data Ingestion (Bronze Layer):
-   - Upload CSV files to staging tables
-   - Basic validation (file format, column count)
-   - Batch processing for large files
-   - Error tracking and reporting
-   - Endpoints:
-     - `/api/v1/bronze/upload/departments/`
-     - `/api/v1/bronze/upload/jobs/`
-     - `/api/v1/bronze/upload/hired_employees/`
+## API Endpoints
 
-2. Data Transformation (Silver Layer):
-   - Transform staging data to dimensional model
-   - Data type conversion and validation
-   - MERGE operations (upsert)
-   - Statistics tracking
-   - Endpoints:
-     - `/api/v1/silver/departments/merge`
-     - `/api/v1/silver/jobs/merge`
-     - `/api/v1/silver/hired_employees/merge`
+### Bronze Layer Endpoints
+Upload endpoints for raw data ingestion:
+```bash
+POST /api/v1/bronze/upload/departments_csv/
+POST /api/v1/bronze/upload/jobs_csv/
+POST /api/v1/bronze/upload/hired_employees_csv/
+```
+
+### Silver Layer Endpoints
+Transformation endpoints for dimensional modeling:
+```bash
+POST /api/v1/silver/departments/merge
+POST /api/v1/silver/jobs/merge
+POST /api/v1/silver/hired_employees/merge
+```
 
 ## Data Models
 
-### Bronze Layer Tables
+### Bronze Layer (Staging Tables)
 
 #### stg_departments
-- `id` STRING - Raw department ID
-- `department` STRING - Department name
+| Column     | Type   | Description        |
+|------------|--------|--------------------|
+| id         | STRING | Raw department ID  |
+| department | STRING | Department name    |
 
 #### stg_jobs
-- `id` STRING - Raw job ID
-- `job` STRING - Job title
+| Column | Type   | Description    |
+|--------|--------|----------------|
+| id     | STRING | Raw job ID     |
+| job    | STRING | Job title      |
 
 #### stg_hired_employees
-- `id` STRING - Raw employee ID
-- `name` STRING - Employee name
-- `datetime` STRING - Hire datetime in ISO format
-- `department_id` STRING - Reference to department
-- `job_id` STRING - Reference to job
+| Column        | Type   | Description           |
+|---------------|--------|-----------------------|
+| id            | STRING | Raw employee ID       |
+| name          | STRING | Employee name         |
+| datetime      | STRING | Hire datetime (ISO)   |
+| department_id | STRING | Department reference  |
+| job_id        | STRING | Job reference         |
 
-### Silver Layer Tables
+### Silver Layer (Dimensional Model)
 
 #### dim_departments
-- `id_department` INTEGER (PK) - Department surrogate key
-- `department` VARCHAR(100) - Department name
+| Column        | Type         | Constraints | Description        |
+|---------------|--------------|-------------|--------------------|
+| id_department | INTEGER      | PK          | Department key     |
+| department    | VARCHAR(100) | NOT NULL    | Department name    |
 
 #### dim_jobs
-- `id_job` INTEGER (PK) - Job surrogate key
-- `job` VARCHAR(100) - Job title
+| Column  | Type         | Constraints | Description    |
+|---------|--------------|-------------|----------------|
+| id_job  | INTEGER      | PK          | Job key        |
+| job     | VARCHAR(100) | NOT NULL    | Job title      |
 
 #### fact_hired_employees
-- `id_employee` INTEGER (PK) - Employee surrogate key
-- `name` VARCHAR(100) - Employee name
-- `hire_datetime` TIMESTAMP - Normalized hire datetime
-- `id_department` INTEGER (FK) - Reference to dim_departments
-- `id_job` INTEGER (FK) - Reference to dim_jobs
+| Column        | Type         | Constraints | Description        |
+|---------------|--------------|-------------|--------------------|
+| id_employee   | INTEGER      | PK          | Employee key       |
+| name          | VARCHAR(100) | NOT NULL    | Employee name      |
+| hire_datetime | TIMESTAMP    | NOT NULL    | Normalized datetime|
+| id_department | INTEGER      | FK          | Department key     |
+| id_job        | INTEGER      | FK          | Job key           |
 
 ## Setup and Installation
-1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Start services: `docker-compose up -d`
-4. Access API documentation: `http://localhost:8000/docs`
 
-## API Documentation
-The API documentation is available at:
-- Swagger UI: `/docs`
-- ReDoc: `/redoc`
+### Prerequisites
+- Docker and Docker Compose
+- Python 3.8+
+- PostgreSQL 15
+
+### Quick Start
+1. Clone the repository:
+```bash
+git clone [repository-url]
+cd SR_DE_coding_challenge
+```
+
+2. Start services:
+```bash
+docker-compose up -d
+```
+
+3. Run migrations:
+```bash
+docker-compose exec api alembic upgrade head
+```
+
+4. Access the API:
+- API Documentation: http://localhost:8000/docs
+- ReDoc Interface: http://localhost:8000/redoc
 
 ## Example Usage
 
-### 1. Upload Departments to Bronze Layer
+### 1. Upload Department Data
 ```bash
-curl -X POST -F "file=@data/departments.csv" http://localhost:8000/api/v1/bronze/upload/departments/
+curl -X POST \
+  -F "file=@data/departments.csv" \
+  http://localhost:8000/api/v1/bronze/upload/departments_csv/
 ```
 
-### 2. Transform to Silver Layer
+### 2. Transform to Dimensional Model
 ```bash
-curl -X POST http://localhost:8000/api/v1/silver/departments/merge
+curl -X POST \
+  http://localhost:8000/api/v1/silver/departments/merge
 ```
 
 The response includes detailed statistics about the operation:
@@ -120,12 +199,13 @@ The response includes detailed statistics about the operation:
 ```
 
 ## Technologies Used
-- FastAPI: Modern web framework for building APIs
-- PostgreSQL 15: Database with native MERGE support
+- FastAPI: Modern, high-performance web framework
+- PostgreSQL 15: Advanced relational database
 - SQLAlchemy: SQL toolkit and ORM
-- Docker: Containerization
-- Alembic: Database migrations
+- Alembic: Database migration tool
+- Docker & Docker Compose: Containerization
 - Pydantic: Data validation
+- Python 3.8+: Programming language
 
 ## Project Structure
 ```
@@ -163,9 +243,9 @@ SR_DE_coding_challenge/
 │           │   ├── __init__.py
 │           │   └── upload/     # Upload endpoints
 │           │       ├── __init__.py
-│           │       ├── departments.py
-│           │       ├── jobs.py
-│           │       └── hired_employees.py
+│           │       ├── departments_csv.py
+│           │       ├── jobs_csv.py
+│           │       └── hired_employees_csv.py
 │           └── silver/        # Silver layer endpoints
 │               ├── __init__.py
 │               ├── dim_departments.py
@@ -187,6 +267,7 @@ SR_DE_coding_challenge/
 ├── docker-compose.yml        # Docker services configuration
 ├── alembic.ini              # Alembic configuration
 └── README.md                # Project documentation
+```
 
 Key Components:
 1. Core (/app/core/):
@@ -203,7 +284,7 @@ Key Components:
    - Base schemas for common functionality
 
 4. Routes (/app/api/routes/):
-   - Bronze Layer: Data ingestion endpoints
+   - Bronze Layer: Data ingestion endpoints for CSV files
    - Silver Layer: Data transformation endpoints
 
 5. Docker:
@@ -242,7 +323,7 @@ docker-compose exec api alembic upgrade head
 # Upload departments data
 curl -X POST \
   -F "file=@data/departments.csv" \
-  http://localhost:8000/api/v1/bronze/upload/departments/
+  http://localhost:8000/api/v1/bronze/upload/departments_csv/
 
 # Example Response:
 {
@@ -257,7 +338,7 @@ curl -X POST \
 # Upload jobs data
 curl -X POST \
   -F "file=@data/jobs.csv" \
-  http://localhost:8000/api/v1/bronze/upload/jobs/
+  http://localhost:8000/api/v1/bronze/upload/jobs_csv/
 
 # Example Response:
 {
@@ -272,7 +353,7 @@ curl -X POST \
 # Upload hired employees data
 curl -X POST \
   -F "file=@data/hired_employees.csv" \
-  http://localhost:8000/api/v1/bronze/upload/hired_employees/
+  http://localhost:8000/api/v1/bronze/upload/hired_employees_csv/
 
 # Example Response:
 {
@@ -442,3 +523,13 @@ docker-compose exec api alembic upgrade head
 # Fix file permissions
 chmod 644 data/*.csv
 ```
+
+## Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+[License Information]
