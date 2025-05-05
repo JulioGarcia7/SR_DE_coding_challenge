@@ -6,19 +6,27 @@ including dimensional model management and data transformations.
 """
 
 from fastapi import APIRouter
-from app.api.routes.silver.dim_departments import router as departments_router
-from app.api.routes.silver.dim_jobs import router as jobs_router
+from .merge.dim_departments import router as departments_router
+from .merge.dim_jobs import router as jobs_router
+from .merge.fact_hired_employees import router as hired_employees_router
 
 router = APIRouter()
 
+# Include the routers for the silver layer operations
 router.include_router(
     departments_router,
-    prefix="/departments",
-    tags=["silver-departments"]
+    prefix="/merge/dim_departments",
+    tags=["silver-layer"]
 )
 
 router.include_router(
     jobs_router,
-    prefix="/jobs",
-    tags=["silver-jobs"]
+    prefix="/merge/dim_jobs",
+    tags=["silver-layer"]
+)
+
+router.include_router(
+    hired_employees_router,
+    prefix="/merge/fact_hired_employees",
+    tags=["silver-layer"]
 ) 

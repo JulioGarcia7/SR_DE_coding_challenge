@@ -19,10 +19,6 @@ class StgDepartmentsCreate(StgDepartmentsBase):
     """Schema for creating staging department data."""
     pass
 
-class StgDepartments(StgDepartmentsBase):
-    """Schema for reading staging department data."""
-    pass
-
 class StgJobsBase(BaseModel):
     """Base schema for staging job data."""
     id: str
@@ -32,10 +28,6 @@ class StgJobsBase(BaseModel):
 
 class StgJobsCreate(StgJobsBase):
     """Schema for creating staging job data."""
-    pass
-
-class StgJobs(StgJobsBase):
-    """Schema for reading staging job data."""
     pass
 
 class StgHiredEmployeesBase(BaseModel):
@@ -50,10 +42,6 @@ class StgHiredEmployeesBase(BaseModel):
 
 class StgHiredEmployeesCreate(StgHiredEmployeesBase):
     """Schema for creating staging hired employee data."""
-    pass
-
-class StgHiredEmployees(StgHiredEmployeesBase):
-    """Schema for reading staging hired employee data."""
     pass
 
 class BatchUploadResponse(BaseModel):

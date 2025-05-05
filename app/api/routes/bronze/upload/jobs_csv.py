@@ -1,7 +1,7 @@
 """
-Bronze departments upload module.
+Bronze jobs upload module.
 
-This module defines the bulk upload endpoint for departments data.
+This module defines the bulk upload endpoint for jobs data.
 """
 
 from typing import List, Dict
@@ -12,30 +12,30 @@ import io
 from sqlalchemy import text
 
 from app.core.database import get_db
-from app.api.models.bronze.stg_departments import StgDepartments
-from app.api.schemas.staging import StgDepartmentsCreate, BatchUploadResponse
+from app.api.models.bronze.stg_jobs import StgJobs
+from app.api.schemas.staging import StgJobsCreate
 
 router = APIRouter(
-    prefix="/upload/departments",
-    tags=["bronze-upload"],
+    prefix="/upload/jobs_csv",
+    tags=["bronze-layer"],
     responses={404: {"description": "Not found"}}
 )
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=BatchUploadResponse)
-async def upload_departments(
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def upload_jobs(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
-) -> BatchUploadResponse:
+) -> Dict:
     """
-    Upload departments data from CSV file in batches.
+    Upload jobs data from CSV file in batches.
     First truncates the existing data, then loads the new data.
     
     Args:
-        file: CSV file with departments data
+        file: CSV file with jobs data
         db: Database session
     
     Returns:
-        BatchUploadResponse with summary of processed batches
+        Dict with summary of processed batches
     
     Raises:
         HTTPException: If file format is invalid or batch size exceeds limit
@@ -48,11 +48,11 @@ async def upload_departments(
     
     try:
         # Get current count
-        result = db.execute(text("SELECT COUNT(*) FROM stg_departments")).scalar()
+        result = db.execute(text("SELECT COUNT(*) FROM stg_jobs")).scalar()
         rows_before = result if result is not None else 0
         
         # Truncate the table before loading new data
-        db.execute(text("TRUNCATE TABLE stg_departments"))
+        db.execute(text("TRUNCATE TABLE stg_jobs"))
         db.commit()
         
         content = await file.read()
@@ -68,7 +68,7 @@ async def upload_departments(
         
         for row_num, row in enumerate(reader, 1):
             try:
-                if len(row) != 2:  # id, department
+                if len(row) != 2:  # id, job
                     error_rows.append({
                         "row": row_num,
                         "data": row,
@@ -76,16 +76,16 @@ async def upload_departments(
                     })
                     continue
                 
-                department_data = {
+                job_data = {
                     "id": str(row[0]),
-                    "department": row[1]
+                    "job": row[1]
                 }
                 
-                current_batch.append(department_data)
+                current_batch.append(job_data)
                 
                 # Process batch when it reaches the size limit
                 if len(current_batch) >= batch_size:
-                    await process_department_batch(current_batch, db)
+                    await process_job_batch(current_batch, db)
                     total_processed += len(current_batch)
                     total_batches += 1
                     progress_messages.append(f"Procesadas {total_processed} filas")
@@ -100,17 +100,18 @@ async def upload_departments(
         
         # Process remaining records
         if current_batch:
-            await process_department_batch(current_batch, db)
+            await process_job_batch(current_batch, db)
             total_processed += len(current_batch)
             total_batches += 1
             progress_messages.append(f"Procesadas {total_processed} filas (lote final)")
         
-        return BatchUploadResponse(
-            message=f"Table stg_departments truncated ({rows_before} rows removed) and file processed successfully",
-            rows_processed=total_processed,
-            success=True,
-            progress=progress_messages
-        )
+        return {
+            "message": f"Table stg_jobs truncated ({rows_before} rows removed) and file processed successfully",
+            "total_processed": total_processed,
+            "total_batches": total_batches,
+            "progress": progress_messages,
+            "errors": error_rows
+        }
         
     except Exception as e:
         db.rollback()
@@ -119,32 +120,32 @@ async def upload_departments(
             detail=f"Error processing file: {str(e)}"
         )
 
-async def process_department_batch(
+async def process_job_batch(
     batch_data: List[dict],
     db: Session
 ) -> None:
     """
-    Process a batch of department records.
+    Process a batch of job records.
     
     Args:
-        batch_data: List of department dictionaries
+        batch_data: List of job dictionaries
         db: Database session
     """
     try:
-        for dept_data in batch_data:
-            # Check if department already exists
-            existing = db.query(StgDepartments).filter(
-                StgDepartments.id == dept_data["id"]
+        for job_data in batch_data:
+            # Check if job already exists
+            existing = db.query(StgJobs).filter(
+                StgJobs.id == job_data["id"]
             ).first()
             
             if existing:
                 # Update existing record
-                for key, value in dept_data.items():
+                for key, value in job_data.items():
                     setattr(existing, key, value)
             else:
                 # Create new record
-                db_department = StgDepartments(**dept_data)
-                db.add(db_department)
+                db_job = StgJobs(**job_data)
+                db.add(db_job)
         
         db.commit()
     except Exception as e:

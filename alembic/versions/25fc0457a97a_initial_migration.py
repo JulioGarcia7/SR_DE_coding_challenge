@@ -1,8 +1,8 @@
-"""create_bronze_and_silver_layers
+"""initial migration
 
-Revision ID: db85176f4d91
+Revision ID: 25fc0457a97a
 Revises: 
-Create Date: 2025-05-04 19:20:37.964399
+Create Date: 2025-05-05 04:49:21.913835
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'db85176f4d91'
+revision: str = '25fc0457a97a'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
