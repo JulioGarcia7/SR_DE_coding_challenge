@@ -17,7 +17,7 @@ from app.api.schemas.staging import StgJobsCreate
 
 router = APIRouter(
     prefix="/upload/jobs_csv",
-    tags=["bronze-upload"],
+    tags=["bronze-layer"],
     responses={404: {"description": "Not found"}}
 )
 
