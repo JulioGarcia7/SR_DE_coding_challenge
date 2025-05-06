@@ -42,32 +42,6 @@ async def merge_hired_employees(db: Session = Depends(get_db)):
                 }
             )
 
-        # Get data quality statistics
-        validation_query = """
-        SELECT 
-            COUNT(*) as total_records,
-            SUM(CASE WHEN department_id IS NULL OR job_id IS NULL OR id IS NULL OR datetime IS NULL THEN 1 ELSE 0 END) as null_references,
-            SUM(CASE 
-                WHEN department_id IS NOT NULL AND job_id IS NOT NULL 
-                AND NOT EXISTS (
-                    SELECT 1 FROM dim_departments d 
-                    WHERE d.id_department = department_id::integer
-                ) THEN 1 
-                ELSE 0 
-            END) as invalid_departments,
-            SUM(CASE 
-                WHEN department_id IS NOT NULL AND job_id IS NOT NULL 
-                AND NOT EXISTS (
-                    SELECT 1 FROM dim_jobs j 
-                    WHERE j.id_job = job_id::integer
-                ) THEN 1 
-                ELSE 0 
-            END) as invalid_jobs
-        FROM stg_hired_employees;
-        """
-        
-        validation_result = db.execute(text(validation_query)).fetchone()
-
         # Get initial count
         initial_count = db.execute(
             text("SELECT COUNT(*) FROM fact_hired_employees")
@@ -115,68 +89,46 @@ async def merge_hired_employees(db: Session = Depends(get_db)):
                 s.id_job
             );
         """
-        
         db.execute(text(merge_query))
-        
+        db.commit()
+
         # Get final statistics
-        stats_query = """
-        WITH staging_stats AS (
-            SELECT 
-                COUNT(*) as total_records,
-                SUM(CASE 
-                    WHEN id IS NOT NULL 
+        final_count = db.execute(
+            text("SELECT COUNT(*) FROM fact_hired_employees")
+        ).scalar() or 0
+
+        valid_records = db.execute(
+            text("""
+                SELECT COUNT(*) FROM stg_hired_employees s
+                WHERE 
+                    id IS NOT NULL 
                     AND department_id IS NOT NULL 
                     AND job_id IS NOT NULL
                     AND datetime IS NOT NULL
                     AND EXISTS (
                         SELECT 1 FROM dim_departments d 
-                        WHERE d.id_department = department_id::integer
+                        WHERE d.id_department = s.department_id::integer
                     )
                     AND EXISTS (
                         SELECT 1 FROM dim_jobs j 
-                        WHERE j.id_job = job_id::integer
+                        WHERE j.id_job = s.job_id::integer
                     )
-                THEN 1 ELSE 0 END) as valid_records
-            FROM stg_hired_employees
-        )
-        SELECT 
-            (SELECT COUNT(*) FROM fact_hired_employees) as final_count,
-            s.total_records as total_processed,
-            s.valid_records as valid_records,
-            (
-                SELECT COUNT(*)
-                FROM fact_hired_employees f
-                WHERE EXISTS (
-                    SELECT 1 FROM stg_hired_employees s
-                    WHERE s.id::integer = f.id_employee
-                )
-            ) as updated_records
-        FROM staging_stats s;
-        """
-        
-        stats = db.execute(text(stats_query)).fetchone()
-        
-        db.commit()
-        
+            """)
+        ).scalar() or 0
+
+        invalid_records = staging_count - valid_records
+
         return {
             "message": "Hired employees merged successfully",
             "statistics": {
                 "initial_count": initial_count,
-                "final_count": stats.final_count,
-                "total_processed": stats.total_processed,
-                "valid_records": stats.valid_records,
-                "invalid_records": stats.total_processed - stats.valid_records,
-                "updated": stats.updated_records,
-                "inserted": stats.valid_records - stats.updated_records,
-                "validation_details": {
-                    "null_references": validation_result.null_references,
-                    "invalid_departments": validation_result.invalid_departments,
-                    "invalid_jobs": validation_result.invalid_jobs
-                }
+                "final_count": final_count,
+                "total_processed": staging_count,
+                "valid_records": valid_records,
+                "invalid_records": invalid_records
             },
             "status": "success"
         }
-        
     except Exception as e:
         db.rollback()
         raise HTTPException(

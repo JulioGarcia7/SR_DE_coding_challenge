@@ -107,9 +107,10 @@ async def upload_departments(
         
         return BatchUploadResponse(
             message=f"Table stg_departments truncated ({rows_before} rows removed) and file processed successfully",
-            rows_processed=total_processed,
-            success=True,
-            progress=progress_messages
+            total_processed=total_processed,
+            total_batches=total_batches,
+            progress=progress_messages,
+            errors=error_rows
         )
         
     except Exception as e:
