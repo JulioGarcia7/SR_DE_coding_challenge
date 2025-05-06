@@ -6,6 +6,7 @@ Follows dimensional modeling naming convention with 'fact_' prefix.
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index
+from sqlalchemy.sql import func
 from app.core.database import base
 
 class FactHiredEmployees(base):
@@ -21,6 +22,8 @@ class FactHiredEmployees(base):
         hire_datetime (DateTime): Date and time when the employee was hired
         id_department (int): Foreign key to dim_departments (protected from deletion)
         id_job (int): Foreign key to dim_jobs (protected from deletion)
+        created_timestamp (datetime): Timestamp when the record was created
+        updated_timestamp (datetime): Timestamp when the record was last updated
     
     Foreign Key Behavior:
         - department_id: RESTRICT - Prevents deletion of departments with employees
@@ -58,6 +61,10 @@ class FactHiredEmployees(base):
         nullable=False,
         index=True  # Index for better join performance
     )
+    
+    # Audit timestamps
+    created_timestamp = Column(DateTime, nullable=False, server_default=func.now())
+    updated_timestamp = Column(DateTime, nullable=True, onupdate=func.now())
     
     # Create indexes for common queries
     __table_args__ = (

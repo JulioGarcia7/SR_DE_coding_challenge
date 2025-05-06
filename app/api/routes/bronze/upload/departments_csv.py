@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 from app.core.database import get_db
 from app.api.models.bronze.stg_departments import StgDepartments
-from app.api.schemas.staging import BatchUploadResponse
+from app.api.schemas.staging import StgDepartmentsCreate, BatchUploadResponse
 
 router = APIRouter(
     prefix="/upload/departments_csv",
@@ -21,11 +21,11 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=BatchUploadResponse)
 async def upload_departments(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
-) -> Dict:
+) -> BatchUploadResponse:
     """
     Upload departments data from CSV file in batches.
     First truncates the existing data, then loads the new data.
@@ -35,7 +35,7 @@ async def upload_departments(
         db: Database session
     
     Returns:
-        Dict with summary of processed batches
+        BatchUploadResponse with summary of processed batches
     
     Raises:
         HTTPException: If file format is invalid or batch size exceeds limit
@@ -76,23 +76,6 @@ async def upload_departments(
                     })
                     continue
                 
-                # Validate required fields
-                if not row[0]:  # id
-                    error_rows.append({
-                        "row": row_num,
-                        "data": row,
-                        "error": "Missing required field: id"
-                    })
-                    continue
-                
-                if not row[1]:  # department
-                    error_rows.append({
-                        "row": row_num,
-                        "data": row,
-                        "error": "Missing required field: department"
-                    })
-                    continue
-                
                 department_data = {
                     "id": str(row[0]),
                     "department": row[1]
@@ -122,13 +105,12 @@ async def upload_departments(
             total_batches += 1
             progress_messages.append(f"Procesadas {total_processed} filas (lote final)")
         
-        return {
-            "message": f"Table stg_departments truncated ({rows_before} rows removed) and file processed successfully",
-            "total_processed": total_processed,
-            "total_batches": total_batches,
-            "progress": progress_messages,
-            "errors": error_rows
-        }
+        return BatchUploadResponse(
+            message=f"Table stg_departments truncated ({rows_before} rows removed) and file processed successfully",
+            rows_processed=total_processed,
+            success=True,
+            progress=progress_messages
+        )
         
     except Exception as e:
         db.rollback()
@@ -167,4 +149,4 @@ async def process_department_batch(
         db.commit()
     except Exception as e:
         db.rollback()
-        raise e 
+        raise e # Rollback in case of error

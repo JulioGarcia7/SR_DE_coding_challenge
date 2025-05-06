@@ -150,4 +150,4 @@ async def process_job_batch(
         db.commit()
     except Exception as e:
         db.rollback()
-        raise e 
+        raise e # Rollback in case of error
