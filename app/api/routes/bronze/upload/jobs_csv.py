@@ -88,7 +88,7 @@ async def upload_jobs(
                     await process_job_batch(current_batch, db)
                     total_processed += len(current_batch)
                     total_batches += 1
-                    progress_messages.append(f"Procesadas {total_processed} filas")
+                    progress_messages.append(f"Processed {total_processed} rows")
                     current_batch = []
             
             except ValueError as e:
@@ -103,7 +103,7 @@ async def upload_jobs(
             await process_job_batch(current_batch, db)
             total_processed += len(current_batch)
             total_batches += 1
-            progress_messages.append(f"Procesadas {total_processed} filas (lote final)")
+            progress_messages.append(f"Processed {total_processed} rows (final batch)")
         
         return {
             "message": f"Table stg_jobs truncated ({rows_before} rows removed) and file processed successfully",

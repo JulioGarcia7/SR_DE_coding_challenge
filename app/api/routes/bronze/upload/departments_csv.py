@@ -88,7 +88,7 @@ async def upload_departments(
                     await process_department_batch(current_batch, db)
                     total_processed += len(current_batch)
                     total_batches += 1
-                    progress_messages.append(f"Procesadas {total_processed} filas")
+                    progress_messages.append(f"Processed {total_processed} rows")
                     current_batch = []
             
             except ValueError as e:
@@ -103,7 +103,7 @@ async def upload_departments(
             await process_department_batch(current_batch, db)
             total_processed += len(current_batch)
             total_batches += 1
-            progress_messages.append(f"Procesadas {total_processed} filas (lote final)")
+            progress_messages.append(f"Processed {total_processed} rows (final batch)")
         
         return BatchUploadResponse(
             message=f"Table stg_departments truncated ({rows_before} rows removed) and file processed successfully",

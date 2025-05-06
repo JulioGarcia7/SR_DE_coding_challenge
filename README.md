@@ -408,12 +408,45 @@ curl -X POST \
 
 ### 3. Silver Layer Transformations
 
-3.1. Transform Departments:
-```bash
-# Transform departments to dimensional model
-curl -X POST http://localhost:8000/api/v1/silver/merge/dim_departments/merge
+The following describes the transformation and merge endpoints of the Silver layer. Each one performs an upsert (MERGE) operation on the dimensional/fact tables, ensuring data integrity and cleanliness.
 
-# Example Response:
+#### 3.1. Transform Departments
+
+This endpoint transforms and merges departments from the staging table (`stg_departments`) into the dimensional table (`dim_departments`). It performs inserts and updates as needed, ensuring there are no duplicates and that names are up to date.
+
+**Endpoint:**
+```bash
+POST /api/v1/silver/merge/dim_departments/merge
+```
+
+**Executed SQL:**
+```sql
+WITH staging_data AS (
+    SELECT DISTINCT
+        id::integer AS id_department,
+        department
+    FROM stg_departments
+    WHERE id IS NOT NULL
+)
+MERGE INTO dim_departments AS target
+USING staging_data AS source
+ON target.id_department = source.id_department
+WHEN MATCHED AND target.department IS DISTINCT FROM source.department THEN
+    UPDATE SET 
+        department = source.department,
+        updated_timestamp = CURRENT_TIMESTAMP
+WHEN NOT MATCHED THEN
+    INSERT (id_department, department, created_timestamp, updated_timestamp)
+    VALUES (
+        source.id_department, 
+        source.department,
+        CURRENT_TIMESTAMP,
+        NULL
+    );
+```
+
+**Success response:**
+```json
 {
     "message": "Departments merged successfully",
     "statistics": {
@@ -427,12 +460,48 @@ curl -X POST http://localhost:8000/api/v1/silver/merge/dim_departments/merge
 }
 ```
 
-3.2. Transform Jobs:
-```bash
-# Transform jobs to dimensional model
-curl -X POST http://localhost:8000/api/v1/silver/merge/dim_jobs/merge
+**Possible errors:**
+- Database error, for example, if there are connection problems or invalid data.
 
-# Example Response:
+---
+
+#### 3.2. Transform Jobs
+
+This endpoint transforms and merges jobs from the staging table (`stg_jobs`) into the dimensional table (`dim_jobs`).
+
+**Endpoint:**
+```bash
+POST /api/v1/silver/merge/dim_jobs/merge
+```
+
+**Executed SQL:**
+```sql
+WITH staging_data AS (
+    SELECT DISTINCT
+        id::integer AS id_job,
+        job
+    FROM stg_jobs
+    WHERE id IS NOT NULL
+)
+MERGE INTO dim_jobs AS target
+USING staging_data AS source
+ON target.id_job = source.id_job
+WHEN MATCHED AND target.job IS DISTINCT FROM source.job THEN
+    UPDATE SET 
+        job = source.job,
+        updated_timestamp = CURRENT_TIMESTAMP
+WHEN NOT MATCHED THEN
+    INSERT (id_job, job, created_timestamp, updated_timestamp)
+    VALUES (
+        source.id_job, 
+        source.job,
+        CURRENT_TIMESTAMP,
+        NULL
+    );
+```
+
+**Success response:**
+```json
 {
     "message": "Jobs merged successfully",
     "statistics": {
@@ -446,24 +515,105 @@ curl -X POST http://localhost:8000/api/v1/silver/merge/dim_jobs/merge
 }
 ```
 
-3.3. Transform Hired Employees:
-```bash
-# Transform hired employees to fact table
-curl -X POST http://localhost:8000/api/v1/silver/merge/fact_hired_employees/merge
+**Possible errors:**
+- Database error, for example, if there are connection problems or invalid data.
 
-# Example Response:
+---
+
+#### 3.3. Transform Hired Employees
+
+This endpoint transforms and merges hired employees from the staging table (`stg_hired_employees`) into the fact table (`fact_hired_employees`). It validates that the department and job IDs exist in the dimensional tables before inserting or updating.
+
+**Endpoint:**
+```bash
+POST /api/v1/silver/merge/fact_hired_employees/merge
+```
+
+**Executed SQL:**
+```sql
+WITH valid_staging AS (
+    SELECT 
+        id::integer as id_employee,
+        name,
+        datetime::timestamp as hire_datetime,
+        department_id::integer as id_department,
+        job_id::integer as id_job
+    FROM stg_hired_employees s
+    WHERE 
+        id IS NOT NULL 
+        AND department_id IS NOT NULL 
+        AND job_id IS NOT NULL
+        AND datetime IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM dim_departments d 
+            WHERE d.id_department = s.department_id::integer
+        )
+        AND EXISTS (
+            SELECT 1 FROM dim_jobs j 
+            WHERE j.id_job = s.job_id::integer
+        )
+)
+MERGE INTO fact_hired_employees f
+USING valid_staging s ON f.id_employee = s.id_employee
+WHEN MATCHED THEN
+    UPDATE SET 
+        name = s.name,
+        hire_datetime = s.hire_datetime,
+        id_department = s.id_department,
+        id_job = s.id_job
+WHEN NOT MATCHED THEN
+    INSERT (id_employee, name, hire_datetime, id_department, id_job)
+    VALUES (
+        s.id_employee, 
+        s.name, 
+        s.hire_datetime, 
+        s.id_department, 
+        s.id_job
+    );
+```
+
+**Success response:**
+```json
 {
     "message": "Hired employees merged successfully",
     "statistics": {
         "initial_count": 0,
         "final_count": 982,
         "total_processed": 982,
-        "inserted": 982,
-        "updated": 0
+        "valid_records": 982,
+        "invalid_records": 0
     },
     "status": "success"
 }
 ```
+
+**Possible errors:**
+- If there is no data in the staging table:
+```json
+{
+    "detail": {
+        "message": "No data found in staging table",
+        "hint": "Please load data into stg_hired_employees before attempting merge"
+    }
+}
+```
+- If an unexpected error occurs:
+```json
+{
+    "detail": {
+        "message": "Error during merge operation",
+        "error": "<error details>",
+        "hint": "Check validation details for specific issues"
+    }
+}
+```
+
+---
+
+**Important notes:**
+- Run the merges in the following order: first departments, then jobs, and finally hired employees, to ensure referential integrity.
+- Merges are idempotent and can be repeated without risk of duplicates.
+- It is recommended to review the returned statistics to monitor inserts and updates.
 
 ### 4. Verification and Monitoring
 
