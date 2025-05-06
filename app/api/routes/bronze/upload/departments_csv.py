@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import csv
 import io
 from sqlalchemy import text
+from fastapi.responses import JSONResponse
 
 from app.core.database import get_db
 from app.api.models.bronze.stg_departments import StgDepartments
@@ -18,14 +19,19 @@ from app.api.schemas.staging import StgDepartmentsCreate, BatchUploadResponse
 router = APIRouter(
     prefix="/upload/departments_csv",
     tags=["bronze-layer"],
-    responses={404: {"description": "Not found"}}
+    responses={
+        201: {"description": "Created"},
+        204: {"description": "No data found in file."},
+        400: {"description": "Bad Request"},
+        500: {"description": "Internal Server Error"}
+    },
 )
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=BatchUploadResponse)
 async def upload_departments(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
-) -> BatchUploadResponse:
+):
     """
     Upload departments data from CSV file in batches.
     First truncates the existing data, then loads the new data.
@@ -65,8 +71,10 @@ async def upload_departments(
         total_batches = 0
         error_rows = []
         progress_messages = []
+        row_count = 0
         
         for row_num, row in enumerate(reader, 1):
+            row_count += 1
             try:
                 if len(row) != 2:  # id, department
                     error_rows.append({
@@ -105,6 +113,28 @@ async def upload_departments(
             total_batches += 1
             progress_messages.append(f"Processed {total_processed} rows (final batch)")
         
+        # New logic for status codes
+        if row_count == 0:
+            # File is empty
+            return JSONResponse(
+                status_code=204,
+                content={
+                    "message": "No data found in file.",
+                    "total_processed": 0,
+                    "total_batches": 0,
+                    "progress": [],
+                    "errors": []
+                }
+            )
+        if total_processed == 0 and error_rows:
+            # All rows invalid
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "message": "No valid data processed. All rows invalid.",
+                    "errors": error_rows
+                }
+            )
         return BatchUploadResponse(
             message=f"Table stg_departments truncated ({rows_before} rows removed) and file processed successfully",
             total_processed=total_processed,

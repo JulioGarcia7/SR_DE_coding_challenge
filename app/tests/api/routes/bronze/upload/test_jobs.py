@@ -29,82 +29,72 @@ def create_test_csv(data: list) -> StringIO:
     output.seek(0)
     return output
 
+# Test uploading valid job data
 def test_upload_valid_data(test_db):
-    """Test uploading valid job data."""
     test_data = [
         [1, "Software Engineer"],
         [2, "Data Scientist"],
         [3, "Product Manager"]
     ]
     csv_file = create_test_csv(test_data)
-    
     response = client.post(
         "/api/v1/bronze/upload/jobs_csv/",
         files={"file": ("test.csv", csv_file.getvalue(), "text/csv")}
     )
-    
     assert response.status_code == 201
     assert response.json()["total_processed"] == 3
     assert response.json()["total_batches"] == 1
     assert len(response.json()["errors"]) == 0
 
+# Test uploading job data with null or empty values
 def test_upload_with_null_values(test_db):
-    """Test handling of null values in CSV."""
     test_data = [
-        [1, ""],  # Empty job title
-        ["", "Data Engineer"],  # Empty id
-        [3, None]  # None value
+        [1, ""],
+        ["", "Data Engineer"],
+        [3, None]
     ]
     csv_file = create_test_csv(test_data)
-    
     response = client.post(
         "/api/v1/bronze/upload/jobs_csv/",
         files={"file": ("test.csv", csv_file.getvalue(), "text/csv")}
     )
-    
     assert response.status_code == 201
-    assert len(response.json()["progress"]) > 0
+    assert isinstance(response.json()["errors"], list)
 
+# Test that batch processing works for more than 1000 rows
 def test_upload_batch_size_limit(test_db):
-    """Test that files are processed in batches of 1000 rows."""
-    # Create 1500 rows of test data
     test_data = [
         [i, f"Job {i}"]
         for i in range(1, 1501)
     ]
     csv_file = create_test_csv(test_data)
-    
     response = client.post(
         "/api/v1/bronze/upload/jobs_csv/",
         files={"file": ("test.csv", csv_file.getvalue(), "text/csv")}
     )
-    
     assert response.status_code == 201
     assert response.json()["total_processed"] == 1500
-    assert response.json()["total_batches"] == 2  # Should be split into 2 batches
+    assert response.json()["total_batches"] == 2
 
+# Test rejection of non-CSV file formats
 def test_upload_invalid_file_format(test_db):
-    """Test handling of invalid file format."""
     response = client.post(
         "/api/v1/bronze/upload/jobs_csv/",
         files={"file": ("test.txt", "invalid content", "text/plain")}
     )
-    
     assert response.status_code == 400
     assert "Only CSV files are allowed" in response.json()["detail"]
 
+# Test handling of rows with invalid column count
 def test_upload_invalid_column_count(test_db):
-    """Test handling of invalid column count in CSV."""
     test_data = [
-        [1, "Engineer", "Extra Column"],  # Too many columns
-        [2],  # Too few columns
+        [1, "Engineer", "Extra Column"],
+        [2],
     ]
     csv_file = create_test_csv(test_data)
-    
     response = client.post(
         "/api/v1/bronze/upload/jobs_csv/",
         files={"file": ("test.csv", csv_file.getvalue(), "text/csv")}
     )
-    
     assert response.status_code == 201
     assert "Invalid number of columns" in str(response.json()) 

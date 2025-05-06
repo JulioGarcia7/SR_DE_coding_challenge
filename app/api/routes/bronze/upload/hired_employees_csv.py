@@ -11,6 +11,7 @@ import csv
 import io
 from datetime import datetime
 from sqlalchemy import text
+from fastapi.responses import JSONResponse
 
 from app.core.database import get_db
 from app.api.models.bronze.stg_hired_employees import StgHiredEmployees
@@ -18,7 +19,12 @@ from app.api.models.bronze.stg_hired_employees import StgHiredEmployees
 router = APIRouter(
     prefix="/upload/hired_employees_csv",
     tags=["bronze-layer"],
-    responses={404: {"description": "Not found"}}
+    responses={
+        201: {"description": "Created"},
+        204: {"description": "No data found in file."},
+        400: {"description": "Bad Request"},
+        500: {"description": "Internal Server Error"}
+    },
 )
 
 def validate_datetime(date_str: str) -> bool:
@@ -98,71 +104,65 @@ def validate_row(row: List[str], row_num: int) -> Tuple[Optional[Dict], Optional
 async def upload_hired_employees(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
-) -> Dict:
-    """
-    Upload hired employees data from CSV file in batches.
-    First truncates the existing data, then loads the new data.
-    
-    Args:
-        file: CSV file with hired employees data
-        db: Database session
-    
-    Returns:
-        Dict with summary of processed batches
-    
-    Raises:
-        HTTPException: If file format is invalid or batch size exceeds limit
-    """
+):
     if not file.filename.endswith('.csv'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only CSV files are allowed"
         )
-    
     try:
-        # Get current count
         result = db.execute(text("SELECT COUNT(*) FROM stg_hired_employees")).scalar()
         rows_before = result if result is not None else 0
-        
-        # Truncate the table before loading new data
         db.execute(text("TRUNCATE TABLE stg_hired_employees"))
         db.commit()
-        
         content = await file.read()
         csv_data = io.StringIO(content.decode())
         reader = csv.reader(csv_data)
-        
         batch_size = 1000
-        current_batch: List[dict] = []
+        current_batch = []
         total_processed = 0
         total_batches = 0
         error_rows = []
         progress_messages = []
-        
+        row_count = 0
         for row_num, row in enumerate(reader, 1):
+            row_count += 1
             data, error = validate_row(row, row_num)
-            
             if error:
                 error_rows.append(error)
                 continue
-            
             current_batch.append(data)
-            
-            # Process batch when it reaches the size limit
             if len(current_batch) >= batch_size:
                 await process_employee_batch(current_batch, db)
                 total_processed += len(current_batch)
                 total_batches += 1
                 progress_messages.append(f"Processed {total_processed} rows")
                 current_batch = []
-        
-        # Process remaining records
         if current_batch:
             await process_employee_batch(current_batch, db)
             total_processed += len(current_batch)
             total_batches += 1
             progress_messages.append(f"Processed {total_processed} rows (final batch)")
-        
+        # New logic for status codes
+        if row_count == 0:
+            return JSONResponse(
+                status_code=204,
+                content={
+                    "message": "No data found in file.",
+                    "total_processed": 0,
+                    "total_batches": 0,
+                    "progress": [],
+                    "errors": []
+                }
+            )
+        if total_processed == 0 and error_rows:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "message": "No valid data processed. All rows invalid.",
+                    "errors": error_rows
+                }
+            )
         return {
             "message": f"Table stg_hired_employees truncated ({rows_before} rows removed) and file processed successfully",
             "total_processed": total_processed,
@@ -170,7 +170,6 @@ async def upload_hired_employees(
             "progress": progress_messages,
             "errors": error_rows
         }
-        
     except Exception as e:
         db.rollback()
         raise HTTPException(
