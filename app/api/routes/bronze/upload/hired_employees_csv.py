@@ -58,6 +58,15 @@ def validate_row(row: List[str], row_num: int) -> Tuple[Optional[Dict], Optional
             "department_id": str(row[3]) if row[3] else None,
             "job_id": str(row[4]) if row[4] else None
         }
+
+        # Validate that no field is empty
+        for key in ["id", "name", "datetime", "department_id", "job_id"]:
+            if not employee_data[key]:
+                return None, {
+                    "row": row_num,
+                    "data": row,
+                    "error": f"Missing value for {key}"
+                }
         
         # Validate datetime format
         if not validate_datetime(employee_data["datetime"]):
@@ -65,6 +74,15 @@ def validate_row(row: List[str], row_num: int) -> Tuple[Optional[Dict], Optional
                 "row": row_num,
                 "data": row,
                 "error": "Invalid datetime format"
+            }
+        
+        # Validate datetime is not in the future
+        dt = datetime.strptime(employee_data["datetime"], "%Y-%m-%dT%H:%M:%SZ")
+        if dt > datetime.utcnow():
+            return None, {
+                "row": row_num,
+                "data": row,
+                "error": "Hire datetime cannot be in the future"
             }
         
         return employee_data, None
@@ -135,7 +153,7 @@ async def upload_hired_employees(
                 await process_employee_batch(current_batch, db)
                 total_processed += len(current_batch)
                 total_batches += 1
-                progress_messages.append(f"Procesadas {total_processed} filas")
+                progress_messages.append(f"Processed {total_processed} rows")
                 current_batch = []
         
         # Process remaining records
@@ -143,7 +161,7 @@ async def upload_hired_employees(
             await process_employee_batch(current_batch, db)
             total_processed += len(current_batch)
             total_batches += 1
-            progress_messages.append(f"Procesadas {total_processed} filas (lote final)")
+            progress_messages.append(f"Processed {total_processed} rows (final batch)")
         
         return {
             "message": f"Table stg_hired_employees truncated ({rows_before} rows removed) and file processed successfully",
