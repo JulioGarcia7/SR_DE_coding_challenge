@@ -1,5 +1,5 @@
 """
-Data Warehouse Models Package
+Data warehouse models.
 
 This package implements the medallion architecture pattern:
 

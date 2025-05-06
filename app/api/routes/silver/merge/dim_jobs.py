@@ -36,18 +36,26 @@ async def merge_jobs(db: Session = Depends(get_db)):
         merge_query = """
         WITH staging_data AS (
             SELECT DISTINCT
-                id::integer as id_job,
+                id::integer AS id_job,
                 job
             FROM stg_jobs
             WHERE id IS NOT NULL
         )
-        MERGE INTO dim_jobs d
-        USING staging_data s ON d.id_job = s.id_job
-        WHEN MATCHED THEN
-            UPDATE SET job = s.job
+        MERGE INTO dim_jobs AS target
+        USING staging_data AS source
+        ON target.id_job = source.id_job
+        WHEN MATCHED AND target.job IS DISTINCT FROM source.job THEN
+            UPDATE SET 
+                job = source.job,
+                updated_timestamp = CURRENT_TIMESTAMP
         WHEN NOT MATCHED THEN
-            INSERT (id_job, job)
-            VALUES (s.id_job, s.job);
+            INSERT (id_job, job, created_timestamp, updated_timestamp)
+            VALUES (
+                source.id_job, 
+                source.job,
+                CURRENT_TIMESTAMP,
+                NULL
+            );
         """
         
         db.execute(text(merge_query))

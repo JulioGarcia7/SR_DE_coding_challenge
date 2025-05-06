@@ -36,18 +36,26 @@ async def merge_departments(db: Session = Depends(get_db)):
         merge_query = """
         WITH staging_data AS (
             SELECT DISTINCT
-                id::integer as id_department,
+                id::integer AS id_department,
                 department
             FROM stg_departments
             WHERE id IS NOT NULL
         )
-        MERGE INTO dim_departments d
-        USING staging_data s ON d.id_department = s.id_department
-        WHEN MATCHED THEN
-            UPDATE SET department = s.department
+        MERGE INTO dim_departments AS target
+        USING staging_data AS source
+        ON target.id_department = source.id_department
+        WHEN MATCHED AND target.department IS DISTINCT FROM source.department THEN
+            UPDATE SET 
+                department = source.department,
+                updated_timestamp = CURRENT_TIMESTAMP
         WHEN NOT MATCHED THEN
-            INSERT (id_department, department)
-            VALUES (s.id_department, s.department);
+            INSERT (id_department, department, created_timestamp, updated_timestamp)
+            VALUES (
+                source.id_department, 
+                source.department,
+                CURRENT_TIMESTAMP,
+                NULL
+            );
         """
         
         db.execute(text(merge_query))
