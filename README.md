@@ -184,52 +184,106 @@ curl -X POST http://localhost:8000/api/v1/silver/merge/dim_departments/merge
 curl -X POST http://localhost:8000/api/v1/silver/merge/dim_jobs/merge
 curl -X POST http://localhost:8000/api/v1/silver/merge/fact_hired_employees/merge
 ```
-**Success Response Example (Departments):**
-```json
-{
-  "message": "Departments merged successfully",
-  "statistics": {
-    "initial_count": 0,
-    "final_count": 12,
-    "total_processed": 12,
-    "inserted": 12,
-    "updated": 0
-  },
-  "status": "success"
-}
+
+**SQL Statement (Departments):**
+```sql
+WITH staging_data AS (
+    SELECT DISTINCT
+        id::integer AS id_department,
+        department
+    FROM stg_departments
+    WHERE id IS NOT NULL
+)
+MERGE INTO dim_departments AS target
+USING staging_data AS source
+ON target.id_department = source.id_department
+WHEN MATCHED AND target.department IS DISTINCT FROM source.department THEN
+    UPDATE SET 
+        department = source.department,
+        updated_timestamp = CURRENT_TIMESTAMP
+WHEN NOT MATCHED THEN
+    INSERT (id_department, department, created_timestamp, updated_timestamp)
+    VALUES (
+        source.id_department, 
+        source.department,
+        CURRENT_TIMESTAMP,
+        NULL
+    );
 ```
-**Success Response Example (Jobs):**
-```json
-{
-  "message": "Jobs merged successfully",
-  "statistics": {
-    "initial_count": 0,
-    "final_count": 183,
-    "total_processed": 183,
-    "inserted": 183,
-    "updated": 0
-  },
-  "status": "success"
-}
+
+**SQL Statement (Jobs):**
+```sql
+WITH staging_data AS (
+    SELECT DISTINCT
+        id::integer AS id_job,
+        job
+    FROM stg_jobs
+    WHERE id IS NOT NULL
+)
+MERGE INTO dim_jobs AS target
+USING staging_data AS source
+ON target.id_job = source.id_job
+WHEN MATCHED AND target.job IS DISTINCT FROM source.job THEN
+    UPDATE SET 
+        job = source.job,
+        updated_timestamp = CURRENT_TIMESTAMP
+WHEN NOT MATCHED THEN
+    INSERT (id_job, job, created_timestamp, updated_timestamp)
+    VALUES (
+        source.id_job, 
+        source.job,
+        CURRENT_TIMESTAMP,
+        NULL
+    );
 ```
-**Success Response Example (Hired Employees):**
-```json
-{
-  "message": "Hired employees merged successfully",
-  "statistics": {
-    "initial_count": 0,
-    "final_count": 982,
-    "total_processed": 982,
-    "valid_records": 982,
-    "invalid_records": 0
-  },
-  "status": "success"
-}
+
+**SQL Statement (Hired Employees):**
+```sql
+WITH valid_staging AS (
+    SELECT 
+        id::integer as id_employee,
+        name,
+        datetime::timestamp as hire_datetime,
+        department_id::integer as id_department,
+        job_id::integer as id_job
+    FROM stg_hired_employees s
+    WHERE 
+        id IS NOT NULL 
+        AND department_id IS NOT NULL 
+        AND job_id IS NOT NULL
+        AND datetime IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM dim_departments d 
+            WHERE d.id_department = s.department_id::integer
+        )
+        AND EXISTS (
+            SELECT 1 FROM dim_jobs j 
+            WHERE j.id_job = s.job_id::integer
+        )
+)
+MERGE INTO fact_hired_employees f
+USING valid_staging s ON f.id_employee = s.id_employee
+WHEN MATCHED THEN
+    UPDATE SET 
+        name = s.name,
+        hire_datetime = s.hire_datetime,
+        id_department = s.id_department,
+        id_job = s.id_job
+WHEN NOT MATCHED THEN
+    INSERT (id_employee, name, hire_datetime, id_department, id_job)
+    VALUES (
+        s.id_employee, 
+        s.name, 
+        s.hire_datetime, 
+        s.id_department, 
+        s.id_job
+    );
 ```
-**How it works:**
-- Each endpoint processes the data from the staging table, applies business rules and data validation, and merges the results into the dimensional or fact tables (`dim_departments`, `dim_jobs`, `fact_hired_employees`).
-- If referential integrity or data type validation fails, those records are skipped.
-- The process is idempotent and can be repeated safely.
+
+**Important notes:**
+- Run the merges in the following order: first departments, then jobs, and finally hired employees, to ensure referential integrity.
+- Merges are idempotent and can be repeated without risk of duplicates.
+- It is recommended to review the returned statistics to monitor inserts and updates.
 
 ### Gold Layer (Analytics & Metrics)
 The Gold layer provides analytical endpoints for business metrics and reporting, built on top of the cleaned and dimensional data from the Silver layer.
@@ -247,26 +301,22 @@ Returns the number of employees hired for each job and department in 2021, divid
 ```bash
 GET /api/v1/gold/metrics/hired_by_quarter
 ```
-**Response Example:**
-```json
-[
-  {
-    "department": "Accounting",
-    "job": "Account Representative IV",
-    "q1": 1,
-    "q2": 0,
-    "q3": 0,
-    "q4": 0
-  },
-  {
-    "department": "Engineering",
-    "job": "Software Engineer I",
-    "q1": 0,
-    "q2": 1,
-    "q3": 2,
-    "q4": 0
-  }
-]
+
+**SQL Statement (Hires by Quarter):**
+```sql
+SELECT
+    d.department AS department,
+    j.job AS job,
+    SUM(CASE WHEN EXTRACT(QUARTER FROM f.hire_datetime) = 1 THEN 1 ELSE 0 END) AS q1,
+    SUM(CASE WHEN EXTRACT(QUARTER FROM f.hire_datetime) = 2 THEN 1 ELSE 0 END) AS q2,
+    SUM(CASE WHEN EXTRACT(QUARTER FROM f.hire_datetime) = 3 THEN 1 ELSE 0 END) AS q3,
+    SUM(CASE WHEN EXTRACT(QUARTER FROM f.hire_datetime) = 4 THEN 1 ELSE 0 END) AS q4
+FROM fact_hired_employees f
+JOIN dim_departments d ON f.id_department = d.id_department
+JOIN dim_jobs j ON f.id_job = j.id_job
+WHERE EXTRACT(YEAR FROM f.hire_datetime) = 2021
+GROUP BY d.department, j.job
+ORDER BY d.department ASC, j.job ASC;
 ```
 
 ##### 2. Departments Above Mean Hires (2021)
@@ -276,13 +326,29 @@ Returns a list of department IDs, names, and number of employees hired for each 
 ```bash
 GET /api/v1/gold/metrics/departments_above_mean
 ```
-**Response Example:**
-```json
-[
-  {"id": 8, "department": "Support", "hired": 217},
-  {"id": 5, "department": "Engineering", "hired": 207},
-  {"id": 6, "department": "Human Resources", "hired": 204}
-]
+
+**SQL Statement (Departments Above Mean):**
+```sql
+WITH hires_per_department AS (
+    SELECT
+        d.id_department,
+        d.department,
+        COUNT(*) AS hired
+    FROM fact_hired_employees f
+    JOIN dim_departments d ON f.id_department = d.id_department
+    WHERE EXTRACT(YEAR FROM f.hire_datetime) = 2021
+    GROUP BY d.id_department, d.department
+),
+mean_hired AS (
+    SELECT AVG(hired) AS mean_hired FROM hires_per_department
+)
+SELECT
+    h.id_department AS id,
+    h.department,
+    h.hired
+FROM hires_per_department h, mean_hired m
+WHERE h.hired > m.mean_hired
+ORDER BY h.hired DESC;
 ```
 
 **How it works:**
@@ -359,73 +425,73 @@ GET /api/v1/gold/metrics/departments_above_mean
 ## Project Structure
 ```
 SR_DE_coding_challenge/
-├── alembic/                        # Database migrations
-│   ├── versions/
+├── alembic/                        # Database migrations (Alembic scripts and config)
+│   ├── versions/                   # Individual migration scripts
 │   │   └── bfd0ff46159b_create_bronze_layer.py
-│   ├── env.py
-│   ├── README
-│   └── script.py.mako
-├── alembic.ini                     # Alembic configuration
+│   ├── env.py                      # Alembic environment setup
+│   ├── README                      # Alembic readme
+│   └── script.py.mako              # Alembic migration template
+├── alembic.ini                     # Alembic main configuration file
 ├── app/
-│   ├── __init__.py
-│   ├── core/
+│   ├── __init__.py                 # App package marker
+│   ├── core/                       # Core app logic and config
 │   │   ├── __init__.py
-│   │   ├── config.py
-│   │   └── database.py
-│   ├── main.py
-│   ├── api/
+│   │   ├── config.py               # App settings and environment variables
+│   │   └── database.py             # Database connection and session management
+│   ├── main.py                     # FastAPI application entry point
+│   ├── api/                        # Main API package
 │   │   ├── __init__.py
-│   │   ├── models/
+│   │   ├── models/                 # SQLAlchemy ORM models
 │   │   │   ├── __init__.py
-│   │   │   ├── bronze/
+│   │   │   ├── bronze/             # Staging (bronze) table models
 │   │   │   │   ├── stg_departments.py
 │   │   │   │   ├── stg_hired_employees.py
 │   │   │   │   └── stg_jobs.py
-│   │   │   ├── silver/
+│   │   │   ├── silver/             # Dimensional (silver) table models
 │   │   │   │   ├── dim_departments.py
 │   │   │   │   ├── dim_jobs.py
 │   │   │   │   └── fact_hired_employees.py
-│   │   │   └── gold/              # (empty or optional)
-│   │   ├── routes/
+│   │   │   └── gold/               # (empty or optional) gold models
+│   │   ├── routes/                 # API endpoints (FastAPI routers)
 │   │   │   ├── __init__.py
-│   │   │   ├── bronze/
+│   │   │   ├── bronze/             # Bronze layer endpoints
 │   │   │   │   ├── __init__.py
-│   │   │   │   └── upload/
+│   │   │   │   └── upload/         # Endpoints for CSV upload
 │   │   │   │       ├── departments_csv.py
 │   │   │   │       ├── hired_employees_csv.py
 │   │   │   │       └── jobs_csv.py
-│   │   │   ├── gold/
+│   │   │   ├── gold/               # Gold layer endpoints (analytics)
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── metrics.py
-│   │   │   └── silver/
+│   │   │   └── silver/             # Silver layer endpoints (merge)
 │   │   │       ├── __init__.py
 │   │   │       └── merge/
 │   │   │           ├── dim_departments.py
 │   │   │           ├── dim_jobs.py
 │   │   │           └── fact_hired_employees.py
-│   │   ├── schemas/
+│   │   ├── schemas/                # Pydantic schemas for validation
 │   │   │   ├── __init__.py
-│   │   │   ├── base.py
-│   │   │   ├── department.py
-│   │   │   ├── gold/
+│   │   │   ├── base.py             # Base schema class
+│   │   │   ├── department.py       # Department schemas
+│   │   │   ├── gold/               # Gold layer schemas
 │   │   │   │   ├── __init__.py
 │   │   │   │   └── metrics.py
-│   │   │   ├── hired_employee.py
-│   │   │   ├── job.py
-│   │   │   ├── staging.py
-│   │   │   └── gold/
+│   │   │   ├── hired_employee.py   # Hired employee schemas
+│   │   │   ├── job.py              # Job schemas
+│   │   │   ├── staging.py          # Staging (bronze) schemas
+│   │   │   └── gold/               # (duplicate, can be cleaned)
 │   │   │       ├── __init__.py
 │   │   │       └── metrics.py
-├── data/
+├── data/                           # Sample data files (CSV)
 │   ├── departments.csv
 │   ├── hired_employees.csv
 │   └── jobs.csv
-├── docker/
-│   ├── Dockerfile
-│   └── init.sql
-├── docker-compose.yml
-├── requirements.txt
-├── app/tests/
+├── docker/                         # Docker configuration
+│   ├── Dockerfile                  # API service Dockerfile
+│   └── init.sql                    # Database initialization script
+├── docker-compose.yml              # Docker services orchestration
+├── requirements.txt                # Python dependencies
+├── app/tests/                      # Automated tests
 │   └── api/
 │       └── routes/
 │           └── bronze/
@@ -433,8 +499,8 @@ SR_DE_coding_challenge/
 │                   ├── test_departments.py
 │                   ├── test_hired_employees.py
 │                   └── test_jobs.py
-├── .gitignore
-└── README.md
+├── .gitignore                      # Git ignore rules
+└── README.md                       # Project documentation
 ```
 
 Key Components:
@@ -474,17 +540,70 @@ Key Components:
 
 ### 1. Initial Setup
 
-1.1. Start the services:
+**Build and start all services (API + DB) using Docker Compose:**
 ```bash
-# Build and start containers
 docker-compose build
 docker-compose up -d
+```
 
-# Run database migrations
+**Run database migrations to create all tables:**
+```bash
 docker-compose exec api alembic upgrade head
 ```
 
-### 2. Bronze Layer Data Loading
+**Verify API is running:**
+```bash
+curl http://localhost:8000/health
+# Should return: {"status": "healthy", "version": "1.0.0"}
+```
+
+**Access interactive API docs:**
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+---
+
+### 1.1. Database Migrations (Alembic)
+
+**If you need to delete all migration history and start fresh:**
+```bash
+# Stop all services first (optional but recommended)
+docker-compose down
+
+# Delete all migration scripts (except __init__.py) in alembic/versions/
+rm alembic/versions/*.py
+
+# Drop the database volume (this will erase all data!)
+docker-compose down -v
+
+# Recreate and start services
+docker-compose up -d
+```
+
+**Create a new migration after modifying models:**
+```bash
+# Generate a new migration script (edit the message as needed)
+docker-compose exec api alembic revision --autogenerate -m "your migration message"
+```
+
+**Apply the latest migration to the database:**
+```bash
+docker-compose exec api alembic upgrade head
+```
+
+**Check current migration status:**
+```bash
+docker-compose exec api alembic current
+```
+
+**Downgrade to a previous migration (use with caution):**
+```bash
+docker-compose exec api alembic downgrade <revision_id>
+```
+
+---
+
+### 2. Bronze Layer: Load Raw Data
 
 2.1. Load Departments:
 ```bash
@@ -492,13 +611,6 @@ docker-compose exec api alembic upgrade head
 curl -X POST \
   -F "file=@data/departments.csv" \
   http://localhost:8000/api/v1/bronze/upload/departments_csv/
-
-# Example Response:
-{
-    "message": "File processed successfully",
-    "rows_processed": 12,
-    "status": "success"
-}
 ```
 
 2.2. Load Jobs:
@@ -507,13 +619,6 @@ curl -X POST \
 curl -X POST \
   -F "file=@data/jobs.csv" \
   http://localhost:8000/api/v1/bronze/upload/jobs_csv/
-
-# Example Response:
-{
-    "message": "File processed successfully",
-    "rows_processed": 183,
-    "status": "success"
-}
 ```
 
 2.3. Load Hired Employees:
@@ -522,14 +627,9 @@ curl -X POST \
 curl -X POST \
   -F "file=@data/hired_employees.csv" \
   http://localhost:8000/api/v1/bronze/upload/hired_employees_csv/
-
-# Example Response:
-{
-    "message": "File processed successfully",
-    "rows_processed": 982,
-    "status": "success"
-}
 ```
+
+---
 
 ### 3. Silver Layer Transformations
 
@@ -570,24 +670,6 @@ WHEN NOT MATCHED THEN
     );
 ```
 
-**Success response:**
-```json
-{
-    "message": "Departments merged successfully",
-    "statistics": {
-        "initial_count": 0,
-        "final_count": 12,
-        "total_processed": 12,
-        "inserted": 12,
-        "updated": 0
-    },
-    "status": "success"
-}
-```
-
-**Possible errors:**
-- Database error, for example, if there are connection problems or invalid data.
-
 ---
 
 #### 3.2. Transform Jobs
@@ -624,24 +706,6 @@ WHEN NOT MATCHED THEN
         NULL
     );
 ```
-
-**Success response:**
-```json
-{
-    "message": "Jobs merged successfully",
-    "statistics": {
-        "initial_count": 0,
-        "final_count": 183,
-        "total_processed": 183,
-        "inserted": 183,
-        "updated": 0
-    },
-    "status": "success"
-}
-```
-
-**Possible errors:**
-- Database error, for example, if there are connection problems or invalid data.
 
 ---
 
@@ -697,150 +761,58 @@ WHEN NOT MATCHED THEN
     );
 ```
 
-**Success response:**
-```json
-{
-    "message": "Hired employees merged successfully",
-    "statistics": {
-        "initial_count": 0,
-        "final_count": 982,
-        "total_processed": 982,
-        "valid_records": 982,
-        "invalid_records": 0
-    },
-    "status": "success"
-}
-```
-
-**Possible errors:**
-- If there is no data in the staging table:
-```json
-{
-    "detail": {
-        "message": "No data found in staging table",
-        "hint": "Please load data into stg_hired_employees before attempting merge"
-    }
-}
-```
-- If an unexpected error occurs:
-```json
-{
-    "detail": {
-        "message": "Error during merge operation",
-        "error": "<error details>",
-        "hint": "Check validation details for specific issues"
-    }
-}
-```
-
----
-
 **Important notes:**
 - Run the merges in the following order: first departments, then jobs, and finally hired employees, to ensure referential integrity.
 - Merges are idempotent and can be repeated without risk of duplicates.
 - It is recommended to review the returned statistics to monitor inserts and updates.
 
-### 4. Verification and Monitoring
+---
 
-4.1. Check API Status:
+### 4. Gold Layer: Analytical Queries
+
+You can now use the gold endpoints to run analytical queries. See the API documentation for details and example requests.
+
+---
+
+### 5. Verification and Monitoring
+
+**Check API Status:**
 ```bash
-# Verify API is running
 curl http://localhost:8000/health
-
-# Example Response:
-{
-    "status": "healthy",
-    "version": "1.0.0"
-}
 ```
 
-4.2. View API Documentation:
-```bash
-# Open in your browser:
-http://localhost:8000/docs  # Swagger UI
-http://localhost:8000/redoc # ReDoc
-```
+**View API Documentation:**
+- http://localhost:8000/docs  # Swagger UI
+- http://localhost:8000/redoc # ReDoc
 
-### 5. Error Handling
+---
 
-The API provides detailed error messages for common scenarios:
+### 6. Troubleshooting
 
-5.1. File Format Errors:
-```json
-{
-    "detail": "Invalid file format. Please provide a CSV file.",
-    "status": "error"
-}
-```
+**Common issues and solutions:**
 
-5.2. Data Validation Errors:
-```json
-{
-    "detail": "Row 5: Invalid datetime format. Expected ISO format.",
-    "status": "error",
-    "row": 5,
-    "column": "datetime"
-}
-```
+- **Connection Errors:**
+    - Check if containers are running: `docker-compose ps`
+    - Check container logs: `docker-compose logs api` and `docker-compose logs db`
+- **Database Issues:**
+    - Reset database (if needed):
+      ```bash
+      docker-compose down -v
+      docker-compose up -d
+      docker-compose exec api alembic upgrade head
+      ```
+- **Permission Issues:**
+    - Fix file permissions: `chmod 644 data/*.csv`
 
-5.3. Database Errors:
-```json
-{
-    "detail": "Foreign key violation. Department ID not found.",
-    "status": "error",
-    "constraint": "fk_department_id"
-}
-```
+---
 
-### 6. Best Practices
+### 7. Best Practices
 
-1. **Order of Operations:**
-   - Always load dimension tables (departments, jobs) before fact tables
-   - Transform dimensions before facts
-   - Verify row counts after each operation
-
-2. **Data Validation:**
-   - Check file formats before upload
-   - Validate data types match expected schema
-   - Ensure referential integrity
-
-3. **Monitoring:**
-   - Track statistics after each operation
-   - Monitor database performance
-   - Check logs for errors
-
-4. **Recovery:**
-   - Operations are idempotent
-   - Can safely retry failed operations
-   - Use transaction rollback for consistency
-
-### 7. Troubleshooting
-
-Common issues and solutions:
-
-1. **Connection Errors:**
-```bash
-# Check if containers are running
-docker-compose ps
-
-# Check container logs
-docker-compose logs api
-docker-compose logs db
-```
-
-2. **Database Issues:**
-```bash
-# Reset database (if needed)
-docker-compose down -v
-docker-compose up -d
-docker-compose exec api alembic upgrade head
-```
-
-3. **Permission Issues:**
-```bash
-# Fix file permissions
-chmod 644 data/*.csv
-```
+- Always load and transform dimension tables (departments, jobs) before fact tables (hired employees).
+- Validate your CSV files before uploading.
+- Monitor row counts and statistics after each operation.
+- Operations are idempotent and can be safely retried.
+- Use transaction rollback for consistency if needed.
 
 ## Contributing
 1. Fork the repository
