@@ -1,11 +1,11 @@
 # SR_DE_coding_challenge
 
 ## Project Overview
-This project implements a data migration API following a two-layer medallion architecture for efficient data processing and analytics. The system processes employee hiring data through a robust ETL pipeline, transforming raw CSV data into a dimensional model suitable for analysis.
+This project implements a data migration API following a **three-layer medallion architecture** (Bronze, Silver, Gold) for efficient data processing, analytics, and business reporting. The system processes employee hiring data through a robust ETL pipeline, transforming raw CSV data into a dimensional model and exposing business metrics via analytical endpoints.
 
 ## Architecture Flow Diagram
 ```
-[Inicio] → [Archivos CSV]
+[Start] → [CSV Files]
     ↓
 [Bronze Layer (Staging)]
     │
@@ -23,9 +23,7 @@ This project implements a data migration API following a two-layer medallion arc
             - datetime (STRING)
             - department_id (STRING)
             - job_id (STRING)
-            
-    ↓ [Transformación y Validación]
-    
+    ↓ [Transformation & Validation]
 [Silver Layer (Dimensional Model)]
     │
     ├─→ [dim_departments]
@@ -42,16 +40,17 @@ This project implements a data migration API following a two-layer medallion arc
             - hire_datetime (TIMESTAMP)
             - id_department (INTEGER FK)
             - id_job (INTEGER FK)
-            
-    ↓ [Análisis y Reportes]
-    
-[API Endpoints]
+    ↓ [Analytics & Reporting]
+[Gold Layer (Analytics & Metrics)]
     │
-    ├─→ [Bronze Layer API]
-    │       POST /api/v1/bronze/upload/{entity}/
+    ├─→ [Gold Layer API]
+    │       GET /api/v1/gold/metrics/hired_by_quarter
+    │       GET /api/v1/gold/metrics/departments_above_mean
     │
     └─→ [Silver Layer API]
-            POST /api/v1/silver/{entity}/merge
+            POST /api/v1/silver/merge/dim_departments/merge
+            POST /api/v1/silver/merge/dim_jobs/merge
+            POST /api/v1/silver/merge/fact_hired_employees/merge
 ```
 
 ## Architecture Details
@@ -74,22 +73,106 @@ The Silver layer implements a star schema for analytical queries:
 - Provides detailed merge statistics
 - Uses 'dim_' prefix for dimensions and 'fact_' for fact tables
 
+### Gold Layer (Analytics & Metrics)
+The Gold layer provides analytical endpoints for business metrics and reporting, built on top of the cleaned and dimensional data from the Silver layer.
+- Exposes business KPIs and aggregated reports via API endpoints
+- Uses dimensional tables as source (no new tables required)
+- Endpoints are read-only (GET)
+- Ideal for dashboards, analytics, and stakeholder queries
+
+#### Gold Layer Endpoints
+
+##### 1. Hires by Quarter (2021)
+Returns the number of employees hired for each job and department in 2021, divided by quarter. Results are ordered alphabetically by department and job.
+
+**Endpoint:**
+```bash
+GET /api/v1/gold/metrics/hired_by_quarter
+```
+**Response Example:**
+```json
+[
+  {
+    "department": "Accounting",
+    "job": "Account Representative IV",
+    "q1": 1,
+    "q2": 0,
+    "q3": 0,
+    "q4": 0
+  },
+  {
+    "department": "Engineering",
+    "job": "Software Engineer I",
+    "q1": 0,
+    "q2": 1,
+    "q3": 2,
+    "q4": 0
+  }
+]
+```
+
+##### 2. Departments Above Mean Hires (2021)
+Returns a list of department IDs, names, and number of employees hired for each department that hired more employees than the mean in 2021. Results are ordered by number of hires (descending).
+
+**Endpoint:**
+```bash
+GET /api/v1/gold/metrics/departments_above_mean
+```
+**Response Example:**
+```json
+[
+  {"id": 8, "department": "Support", "hired": 217},
+  {"id": 5, "department": "Engineering", "hired": 207},
+  {"id": 6, "department": "Human Resources", "hired": 204}
+]
+```
+
+**How it works:**
+- These endpoints aggregate and analyze data from the Silver layer tables (`fact_hired_employees`, `dim_departments`, `dim_jobs`).
+- They are designed for business reporting and can be consumed by dashboards or analytics tools.
+
 ## API Endpoints
 
+> **Note:** To obtain business metrics from the Gold layer, you must first load and transform data through the Bronze and Silver layers.
+
 ### Bronze Layer Endpoints
-Upload endpoints for raw data ingestion:
+Endpoints for raw data ingestion (CSV uploads):
 ```bash
 POST /api/v1/bronze/upload/departments_csv/
 POST /api/v1/bronze/upload/jobs_csv/
 POST /api/v1/bronze/upload/hired_employees_csv/
 ```
+**Example Usage:**
+```bash
+curl -X POST -F "file=@data/departments.csv" http://localhost:8000/api/v1/bronze/upload/departments_csv/
+curl -X POST -F "file=@data/jobs.csv" http://localhost:8000/api/v1/bronze/upload/jobs_csv/
+curl -X POST -F "file=@data/hired_employees.csv" http://localhost:8000/api/v1/bronze/upload/hired_employees_csv/
+```
 
 ### Silver Layer Endpoints
-Transformation endpoints for dimensional modeling:
+Endpoints for transforming and merging data into the dimensional model:
 ```bash
-POST /api/v1/silver/departments/merge
-POST /api/v1/silver/jobs/merge
-POST /api/v1/silver/hired_employees/merge
+POST /api/v1/silver/merge/dim_departments/merge
+POST /api/v1/silver/merge/dim_jobs/merge
+POST /api/v1/silver/merge/fact_hired_employees/merge
+```
+**Example Usage:**
+```bash
+curl -X POST http://localhost:8000/api/v1/silver/merge/dim_departments/merge
+curl -X POST http://localhost:8000/api/v1/silver/merge/dim_jobs/merge
+curl -X POST http://localhost:8000/api/v1/silver/merge/fact_hired_employees/merge
+```
+
+### Gold Layer Endpoints
+Endpoints for analytics and business metrics:
+```bash
+GET /api/v1/gold/metrics/hired_by_quarter
+GET /api/v1/gold/metrics/departments_above_mean
+```
+**Example Usage:**
+```bash
+curl -X GET http://localhost:8000/api/v1/gold/metrics/hired_by_quarter
+curl -X GET http://localhost:8000/api/v1/gold/metrics/departments_above_mean
 ```
 
 ## Data Models
@@ -140,72 +223,24 @@ POST /api/v1/silver/hired_employees/merge
 | id_department | INTEGER      | FK          | Department key     |
 | id_job        | INTEGER      | FK          | Job key           |
 
-## Setup and Installation
+### Gold Layer (Analytics & Metrics)
 
-### Prerequisites
-- Docker and Docker Compose
-- Python 3.8+
-- PostgreSQL 15
+#### Hires by Quarter (2021)
+| Field      | Type   | Description                                 |
+|------------|--------|---------------------------------------------|
+| department | STRING | Department name                             |
+| job        | STRING | Job title                                   |
+| q1         | INT    | Number of hires in Q1 (Jan-Mar)             |
+| q2         | INT    | Number of hires in Q2 (Apr-Jun)             |
+| q3         | INT    | Number of hires in Q3 (Jul-Sep)             |
+| q4         | INT    | Number of hires in Q4 (Oct-Dec)             |
 
-### Quick Start
-1. Clone the repository:
-```bash
-git clone [repository-url]
-cd SR_DE_coding_challenge
-```
-
-2. Start services:
-```bash
-docker-compose up -d
-```
-
-3. Run migrations:
-```bash
-docker-compose exec api alembic upgrade head
-```
-
-4. Access the API:
-- API Documentation: http://localhost:8000/docs
-- ReDoc Interface: http://localhost:8000/redoc
-
-## Example Usage
-
-### 1. Upload Department Data
-```bash
-curl -X POST \
-  -F "file=@data/departments.csv" \
-  http://localhost:8000/api/v1/bronze/upload/departments_csv/
-```
-
-### 2. Transform to Dimensional Model
-```bash
-curl -X POST \
-  http://localhost:8000/api/v1/silver/departments/merge
-```
-
-The response includes detailed statistics about the operation:
-```json
-{
-    "message": "Departments merged successfully",
-    "statistics": {
-        "initial_count": 0,
-        "final_count": 12,
-        "total_processed": 12,
-        "inserted": 12,
-        "updated": 0
-    },
-    "status": "success"
-}
-```
-
-## Technologies Used
-- FastAPI: Modern, high-performance web framework
-- PostgreSQL 15: Advanced relational database
-- SQLAlchemy: SQL toolkit and ORM
-- Alembic: Database migration tool
-- Docker & Docker Compose: Containerization
-- Pydantic: Data validation
-- Python 3.8+: Programming language
+#### Departments Above Mean Hires (2021)
+| Field      | Type   | Description                                 |
+|------------|--------|---------------------------------------------|
+| id         | INT    | Department ID                               |
+| department | STRING | Department name                             |
+| hired      | INT    | Number of employees hired in 2021           |
 
 ## Project Structure
 ```
@@ -225,18 +260,22 @@ SR_DE_coding_challenge/
 │       │   │   ├── stg_departments.py
 │       │   │   ├── stg_jobs.py
 │       │   │   └── stg_hired_employees.py
-│       │   └── silver/           # Dimensional models
-│       │       ├── __init__.py
-│       │       ├── dim_departments.py
-│       │       ├── dim_jobs.py
-│       │       └── fact_hired_employees.py
+│       │   ├── silver/           # Dimensional models
+│       │   │   ├── __init__.py
+│       │   │   ├── dim_departments.py
+│       │   │   ├── dim_jobs.py
+│       │   │   └── fact_hired_employees.py
+│       │   └── gold/             # (Optional) Gold models if needed
 │       ├── schemas/              # Pydantic schemas
 │       │   ├── __init__.py
 │       │   ├── base.py           # Base schemas
 │       │   ├── department.py     # Department schemas
 │       │   ├── job.py           # Job schemas
 │       │   ├── hired_employee.py # Employee schemas
-│       │   └── staging.py       # Staging schemas
+│       │   ├── staging.py       # Staging schemas
+│       │   └── gold/            # Gold layer schemas
+│       │       ├── __init__.py
+│       │       └── metrics.py
 │       └── routes/              # API endpoints
 │           ├── __init__.py      # Router configuration
 │           ├── bronze/         # Bronze layer endpoints
@@ -246,11 +285,15 @@ SR_DE_coding_challenge/
 │           │       ├── departments_csv.py
 │           │       ├── jobs_csv.py
 │           │       └── hired_employees_csv.py
-│           └── silver/        # Silver layer endpoints
+│           ├── silver/        # Silver layer endpoints
+│           │   ├── __init__.py
+│           │   ├── merge/     # Merge endpoints
+│           │   │   ├── dim_departments.py
+│           │   │   ├── dim_jobs.py
+│           │   │   └── fact_hired_employees.py
+│           └── gold/         # Gold layer endpoints
 │               ├── __init__.py
-│               ├── dim_departments.py
-│               ├── dim_jobs.py
-│               └── fact_hired_employees.py
+│               └── metrics.py
 ├── docker/                     # Docker configuration
 │   ├── Dockerfile             # API service Dockerfile
 │   └── init.sql              # Database initialization script
@@ -368,7 +411,7 @@ curl -X POST \
 3.1. Transform Departments:
 ```bash
 # Transform departments to dimensional model
-curl -X POST http://localhost:8000/api/v1/silver/departments/merge
+curl -X POST http://localhost:8000/api/v1/silver/merge/dim_departments/merge
 
 # Example Response:
 {
@@ -387,7 +430,7 @@ curl -X POST http://localhost:8000/api/v1/silver/departments/merge
 3.2. Transform Jobs:
 ```bash
 # Transform jobs to dimensional model
-curl -X POST http://localhost:8000/api/v1/silver/jobs/merge
+curl -X POST http://localhost:8000/api/v1/silver/merge/dim_jobs/merge
 
 # Example Response:
 {
@@ -406,7 +449,7 @@ curl -X POST http://localhost:8000/api/v1/silver/jobs/merge
 3.3. Transform Hired Employees:
 ```bash
 # Transform hired employees to fact table
-curl -X POST http://localhost:8000/api/v1/silver/hired_employees/merge
+curl -X POST http://localhost:8000/api/v1/silver/merge/fact_hired_employees/merge
 
 # Example Response:
 {
