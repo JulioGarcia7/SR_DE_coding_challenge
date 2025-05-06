@@ -1,5 +1,5 @@
 """
-Fact Hired Employees model module.
+Hired employees fact table model.
 
 This module defines the Fact table for hired employees using SQLAlchemy ORM.
 Follows dimensional modeling naming convention with 'fact_' prefix.
@@ -11,7 +11,7 @@ from app.core.database import base
 
 class FactHiredEmployees(base):
     """
-    Fact Hired Employees model class.
+    Hired employees fact table.
     
     Represents the fact table for hired employees in the organization.
     Contains metrics and references to dimension tables.
@@ -40,26 +40,26 @@ class FactHiredEmployees(base):
     name = Column(String(100), nullable=False)
     hire_datetime = Column(DateTime, nullable=False)
     
-    # Foreign keys to dimensions with protection against deletion
+    # Foreign keys to dimensions with delete protection
     id_department = Column(
         Integer, 
         ForeignKey(
             "dim_departments.id_department", 
-            ondelete="RESTRICT",  # Prevent deletion of departments with employees
+            ondelete="RESTRICT",  # Prevent deleting departments with employees
             name="fk_fact_hired_employees_department"
         ),
         nullable=False,
-        index=True  # Index for better join performance
+        index=True
     )
     id_job = Column(
         Integer, 
         ForeignKey(
             "dim_jobs.id_job", 
-            ondelete="RESTRICT",  # Prevent deletion of jobs with employees
+            ondelete="RESTRICT",  # Prevent deleting jobs with employees
             name="fk_fact_hired_employees_job"
         ),
         nullable=False,
-        index=True  # Index for better join performance
+        index=True
     )
     
     # Audit timestamps
@@ -72,5 +72,5 @@ class FactHiredEmployees(base):
     )
     
     def __repr__(self):
-        """String representation of the Fact Hired Employees model."""
+        """String representation of the Hired Employees fact table."""
         return f"<{self.__tablename__}(id={self.id_employee}, name={self.name}, department_id={self.id_department}, job_id={self.id_job})>" 

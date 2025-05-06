@@ -1,5 +1,5 @@
 """
-Department model module.
+Department dimension model.
 
 This module defines the Department model for the database using SQLAlchemy ORM.
 Follows dimensional modeling naming convention with 'dim_' prefix.
@@ -12,7 +12,7 @@ from app.core.database import base
 
 class DimDepartments(base):
     """
-    Department model class.
+    Department dimension.
     
     Represents a department dimension in the organization.
     
@@ -32,9 +32,9 @@ class DimDepartments(base):
     created_timestamp = Column(DateTime, nullable=False, server_default=func.now())
     updated_timestamp = Column(DateTime, nullable=True, onupdate=func.now())
     
-    # Relationships
+    # Employees relationship
     employees = relationship("FactHiredEmployees", backref="department")
     
     def __repr__(self):
-        """String representation of the Department model."""
+        """Department dimension repr."""
         return f"<{self.__tablename__}(id={self.id_department}, department={self.department})>" 

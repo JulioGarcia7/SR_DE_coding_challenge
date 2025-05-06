@@ -1,5 +1,5 @@
 """
-Dimensional Job Model Module
+Job dimension model.
 
 This module defines the Job dimension model using SQLAlchemy ORM.
 Part of the silver layer in the medallion architecture.
@@ -12,7 +12,7 @@ from app.core.database import base
 
 class DimJobs(base):
     """
-    Job Dimension Model (Silver Layer)
+    Job dimension.
     
     Represents the job position dimension in the organization's data warehouse.
     Contains cleaned and validated job position data.
@@ -37,13 +37,13 @@ class DimJobs(base):
     created_timestamp = Column(DateTime, nullable=False, server_default=func.now())
     updated_timestamp = Column(DateTime, nullable=True, onupdate=func.now())
     
-    # Relationships
+    # Employees relationship
     employees = relationship(
         "FactHiredEmployees", 
         backref="job",
-        lazy="dynamic"  # Lazy loading for better performance
+        lazy="dynamic"
     )
     
     def __repr__(self):
-        """Returns a string representation of the Job dimension."""
+        """Job dimension repr."""
         return f"<{self.__tablename__}(id={self.id_job}, job={self.job})>" 

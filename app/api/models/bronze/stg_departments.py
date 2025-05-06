@@ -1,5 +1,5 @@
 """
-Staging Department Model Module (Bronze Layer)
+Staging department table (bronze layer).
 
 This module defines the staging table for raw department data.
 Part of the bronze layer in the medallion architecture.
@@ -11,7 +11,7 @@ from app.core.database import base
 
 class StgDepartments(base):
     """
-    Staging Department Model (Bronze Layer)
+    Staging department table.
     
     Initial landing table for raw department data from source systems.
     Maintains original data types with minimal transformations.
@@ -29,10 +29,10 @@ class StgDepartments(base):
     """
     __tablename__ = "stg_departments"
     
-    # Raw fields from source
+    # Source fields
     id = Column(String, primary_key=True)
     department = Column(String, nullable=True)
     
     def __repr__(self):
-        """Returns a string representation of the staging department record."""
+        """Staging department record repr."""
         return f"<{self.__tablename__}(id={self.id}, department={self.department})>" 
