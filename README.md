@@ -1,77 +1,235 @@
 # SR_DE_coding_challenge
 
+## CSV Files Structure
+
+### hired_employees.csv
+| Column         | Type    | Description                                             |
+|---------------|---------|---------------------------------------------------------|
+| id            | INTEGER | Id of the employee                                      |
+| name          | STRING  | Name and surname of the employee                        |
+| datetime      | STRING  | Hire datetime in ISO format (e.g., 2021-07-27T16:02:08Z)|
+| department_id | INTEGER | Id of the department which the employee was hired for   |
+| job_id        | INTEGER | Id of the job which the employee was hired for          |
+
+**Example:**
+```
+4535,Marcelo Gonzalez,2021-07-27T16:02:08Z,1,2
+4572,Lidia Mendez,2021-07-27T19:04:09Z,1,2
+```
+### departments.csv
+| Column     | Type    | Description              |
+|------------|---------|--------------------------|
+| id         | INTEGER | Id of the department     |
+| department | STRING  | Name of the department   |
+
+**Example:**
+```
+1,Supply Chain
+2,Maintenance
+3,Staff
+```
+### jobs.csv
+| Column | Type    | Description        |
+|--------|---------|--------------------|
+| id     | INTEGER | Id of the job      |
+| job    | STRING  | Name of the job    |
+
+**Example:**
+```
+1,Recruiter
+2,Manager
+3,Analyst
+```
+
 ## Project Overview
 This project implements a data migration API following a **three-layer medallion architecture** (Bronze, Silver, Gold) for efficient data processing, analytics, and business reporting. The system processes employee hiring data through a robust ETL pipeline, transforming raw CSV data into a dimensional model and exposing business metrics via analytical endpoints.
 
 ## Architecture Flow Diagram
+
+```text
+Recruiter
+   │
+   ├──► [departments.csv]
+   ├──► [jobs.csv]
+   └──► [hired_employees.csv]
+           │
+           ▼
+   ┌───────────────────────────────┐
+   │      Bronze Endpoints         │
+   │      (CSV Upload)             │
+   └─────────────┬─────────────────┘
+                 │
+                 ▼
+   ┌───────────────────────────────────────────────┐
+   │           Bronze Layer (Staging)             │
+   │  - stg_departments                           │
+   │  - stg_jobs                                  │
+   │  - stg_hired_employees                       │
+   └─────────────┬────────────────────────────────┘
+                 │
+                 ▼
+   ┌───────────────────────────────────────────────┐
+   │           Bronze Validations:                │
+   │  - File format (CSV)                         │
+   │  - Number of columns                         │
+   │  - Data types (all as string)                │
+   │  - Truncate table before insert              │
+   │  - Batch insert (batch size: 1000)           │
+   └─────────────┬────────────────────────────────┘
+                 │
+                 ▼
+   ┌───────────────────────────────────────────────┐
+   │         Silver Endpoints (Merge)             │
+   │  - /silver/merge/dim_departments/merge       │
+   │  - /silver/merge/dim_jobs/merge              │
+   │  - /silver/merge/fact_hired_employees/merge  │
+   └─────────────┬────────────────────────────────┘
+                 │
+                 ▼
+   ┌───────────────────────────────────────────────┐
+   │        Silver Layer (Dimensional Model)      │
+   │  - dim_departments                           │
+   │  - dim_jobs                                  │
+   │  - fact_hired_employees                      │
+   └─────────────┬────────────────────────────────┘
+                 │
+                 ▼
+   ┌───────────────────────────────────────────────┐
+   │           Silver Validations:                │
+   │  - Data type conversion                      │
+   │  - Referential integrity (FK checks)         │
+   │  - Upsert/Merge logic                        │
+   │  - Cleansing (remove/skip invalid records)   │
+   └─────────────┬────────────────────────────────┘
+                 │
+                 ▼
+   ┌───────────────────────────────────────────────┐
+   │         Gold Endpoints (Analytics)           │
+   │  - /gold/metrics/hired_by_quarter            │
+   │  - /gold/metrics/departments_above_mean      │
+   └─────────────┬────────────────────────────────┘
+                 │
+                 ▼
+   ┌───────────────────────────────────────────────┐
+   │        Gold Layer (Analytics & Metrics)      │
+   │  - Business KPIs                             │
+   │  - Aggregated reports                        │
+   │  - Read-only endpoints                       │
+   └───────────────────────────────────────────────┘
 ```
-[Start] → [CSV Files]
-    ↓
-[Bronze Layer (Staging)]
-    │
-    ├─→ [stg_departments]
-    │       - id (STRING)
-    │       - department (STRING)
-    │
-    ├─→ [stg_jobs]
-    │       - id (STRING)
-    │       - job (STRING)
-    │
-    └─→ [stg_hired_employees]
-            - id (STRING)
-            - name (STRING)
-            - datetime (STRING)
-            - department_id (STRING)
-            - job_id (STRING)
-    ↓ [Transformation & Validation]
-[Silver Layer (Dimensional Model)]
-    │
-    ├─→ [dim_departments]
-    │       - id_department (INTEGER PK)
-    │       - department (VARCHAR)
-    │
-    ├─→ [dim_jobs]
-    │       - id_job (INTEGER PK)
-    │       - job (VARCHAR)
-    │
-    └─→ [fact_hired_employees]
-            - id_employee (INTEGER PK)
-            - name (VARCHAR)
-            - hire_datetime (TIMESTAMP)
-            - id_department (INTEGER FK)
-            - id_job (INTEGER FK)
-    ↓ [Analytics & Reporting]
-[Gold Layer (Analytics & Metrics)]
-    │
-    ├─→ [Gold Layer API]
-    │       GET /api/v1/gold/metrics/hired_by_quarter
-    │       GET /api/v1/gold/metrics/departments_above_mean
-    │
-    └─→ [Silver Layer API]
-            POST /api/v1/silver/merge/dim_departments/merge
-            POST /api/v1/silver/merge/dim_jobs/merge
-            POST /api/v1/silver/merge/fact_hired_employees/merge
-```
+
+**Notes:**
+- Each bronze upload endpoint validates file format, columns, and truncates the table before inserting in batches of 1000.
+- Silver merge endpoints validate types, referential integrity, and perform upsert/merge.
+- Gold layer exposes only read-only endpoints for business metrics.
 
 ## Architecture Details
 
-### Bronze Layer (Staging)
-The Bronze layer serves as the initial landing zone for raw data:
-- Accepts CSV file uploads through API endpoints
-- Preserves source data in its original form (all fields as strings)
-- Implements basic validation for file format and structure
-- Provides batch processing capabilities for large datasets
-- Tracks data quality metrics and upload statistics
-- Tables are prefixed with 'stg_' for clear identification
+### Bronze Layer Endpoints
 
-### Silver Layer (Dimensional Model)
-The Silver layer implements a star schema for analytical queries:
-- Transforms and cleanses data from Bronze layer
-- Enforces proper data types and constraints
-- Implements business rules and data validation
-- Maintains referential integrity
-- Provides detailed merge statistics
-- Uses 'dim_' prefix for dimensions and 'fact_' for fact tables
+Endpoints for raw data ingestion (CSV uploads). Each endpoint:
+- Accepts a CSV file upload.
+- Validates file format and number of columns.
+- Truncates the corresponding staging table before inserting new data.
+- Inserts data in batches (batch size: 1000).
+- All fields are stored as strings in the staging tables.
+
+**Endpoints:**
+```bash
+POST /api/v1/bronze/upload/departments_csv/
+POST /api/v1/bronze/upload/jobs_csv/
+POST /api/v1/bronze/upload/hired_employees_csv/
+```
+**Example Usage:**
+```bash
+curl -X POST -F "file=@data/departments.csv" http://localhost:8000/api/v1/bronze/upload/departments_csv/
+curl -X POST -F "file=@data/jobs.csv" http://localhost:8000/api/v1/bronze/upload/jobs_csv/
+curl -X POST -F "file=@data/hired_employees.csv" http://localhost:8000/api/v1/bronze/upload/hired_employees_csv/
+```
+**Success Response Example:**
+```json
+{
+  "message": "Table stg_departments truncated (12 rows removed) and file processed successfully",
+  "total_processed": 12,
+  "total_batches": 1,
+  "progress": ["Processed 12 rows (final batch)"],
+  "errors": []
+}
+```
+**How it works:**
+- Each endpoint processes the uploaded CSV file, validates its structure, and loads the data into the corresponding staging table (`stg_departments`, `stg_jobs`, `stg_hired_employees`).
+- If the file format or columns are invalid, an error is returned.
+- The process is atomic per file: the table is truncated before loading new data.
+
+---
+
+### Silver Layer Endpoints
+
+Endpoints for transforming and merging data from the staging tables into the dimensional model. Each endpoint:
+- Reads data from the corresponding staging table.
+- Validates and converts data types.
+- Ensures referential integrity (foreign key checks).
+- Performs upsert/merge operations into the dimensional or fact tables.
+- Cleanses data by skipping or removing invalid records.
+
+**Endpoints:**
+```bash
+POST /api/v1/silver/merge/dim_departments/merge
+POST /api/v1/silver/merge/dim_jobs/merge
+POST /api/v1/silver/merge/fact_hired_employees/merge
+```
+**Example Usage:**
+```bash
+curl -X POST http://localhost:8000/api/v1/silver/merge/dim_departments/merge
+curl -X POST http://localhost:8000/api/v1/silver/merge/dim_jobs/merge
+curl -X POST http://localhost:8000/api/v1/silver/merge/fact_hired_employees/merge
+```
+**Success Response Example (Departments):**
+```json
+{
+  "message": "Departments merged successfully",
+  "statistics": {
+    "initial_count": 0,
+    "final_count": 12,
+    "total_processed": 12,
+    "inserted": 12,
+    "updated": 0
+  },
+  "status": "success"
+}
+```
+**Success Response Example (Jobs):**
+```json
+{
+  "message": "Jobs merged successfully",
+  "statistics": {
+    "initial_count": 0,
+    "final_count": 183,
+    "total_processed": 183,
+    "inserted": 183,
+    "updated": 0
+  },
+  "status": "success"
+}
+```
+**Success Response Example (Hired Employees):**
+```json
+{
+  "message": "Hired employees merged successfully",
+  "statistics": {
+    "initial_count": 0,
+    "final_count": 982,
+    "total_processed": 982,
+    "valid_records": 982,
+    "invalid_records": 0
+  },
+  "status": "success"
+}
+```
+**How it works:**
+- Each endpoint processes the data from the staging table, applies business rules and data validation, and merges the results into the dimensional or fact tables (`dim_departments`, `dim_jobs`, `fact_hired_employees`).
+- If referential integrity or data type validation fails, those records are skipped.
+- The process is idempotent and can be repeated safely.
 
 ### Gold Layer (Analytics & Metrics)
 The Gold layer provides analytical endpoints for business metrics and reporting, built on top of the cleaned and dimensional data from the Silver layer.
@@ -130,50 +288,6 @@ GET /api/v1/gold/metrics/departments_above_mean
 **How it works:**
 - These endpoints aggregate and analyze data from the Silver layer tables (`fact_hired_employees`, `dim_departments`, `dim_jobs`).
 - They are designed for business reporting and can be consumed by dashboards or analytics tools.
-
-## API Endpoints
-
-> **Note:** To obtain business metrics from the Gold layer, you must first load and transform data through the Bronze and Silver layers.
-
-### Bronze Layer Endpoints
-Endpoints for raw data ingestion (CSV uploads):
-```bash
-POST /api/v1/bronze/upload/departments_csv/
-POST /api/v1/bronze/upload/jobs_csv/
-POST /api/v1/bronze/upload/hired_employees_csv/
-```
-**Example Usage:**
-```bash
-curl -X POST -F "file=@data/departments.csv" http://localhost:8000/api/v1/bronze/upload/departments_csv/
-curl -X POST -F "file=@data/jobs.csv" http://localhost:8000/api/v1/bronze/upload/jobs_csv/
-curl -X POST -F "file=@data/hired_employees.csv" http://localhost:8000/api/v1/bronze/upload/hired_employees_csv/
-```
-
-### Silver Layer Endpoints
-Endpoints for transforming and merging data into the dimensional model:
-```bash
-POST /api/v1/silver/merge/dim_departments/merge
-POST /api/v1/silver/merge/dim_jobs/merge
-POST /api/v1/silver/merge/fact_hired_employees/merge
-```
-**Example Usage:**
-```bash
-curl -X POST http://localhost:8000/api/v1/silver/merge/dim_departments/merge
-curl -X POST http://localhost:8000/api/v1/silver/merge/dim_jobs/merge
-curl -X POST http://localhost:8000/api/v1/silver/merge/fact_hired_employees/merge
-```
-
-### Gold Layer Endpoints
-Endpoints for analytics and business metrics:
-```bash
-GET /api/v1/gold/metrics/hired_by_quarter
-GET /api/v1/gold/metrics/departments_above_mean
-```
-**Example Usage:**
-```bash
-curl -X GET http://localhost:8000/api/v1/gold/metrics/hired_by_quarter
-curl -X GET http://localhost:8000/api/v1/gold/metrics/departments_above_mean
-```
 
 ## Data Models
 
@@ -245,71 +359,82 @@ curl -X GET http://localhost:8000/api/v1/gold/metrics/departments_above_mean
 ## Project Structure
 ```
 SR_DE_coding_challenge/
-├── app/                            # Application package
-│   ├── main.py                     # FastAPI application entry point
-│   ├── core/                       # Core functionality
+├── alembic/                        # Database migrations
+│   ├── versions/
+│   │   └── bfd0ff46159b_create_bronze_layer.py
+│   ├── env.py
+│   ├── README
+│   └── script.py.mako
+├── alembic.ini                     # Alembic configuration
+├── app/
+│   ├── __init__.py
+│   ├── core/
 │   │   ├── __init__.py
-│   │   ├── config.py              # Configuration settings
-│   │   └── database.py            # Database connection and session management
-│   └── api/                       # API package
-│       ├── __init__.py
-│       ├── models/                # SQLAlchemy models
-│       │   ├── __init__.py        # Model exports
-│       │   ├── bronze/           # Staging models
-│       │   │   ├── __init__.py
-│       │   │   ├── stg_departments.py
-│       │   │   ├── stg_jobs.py
-│       │   │   └── stg_hired_employees.py
-│       │   ├── silver/           # Dimensional models
-│       │   │   ├── __init__.py
-│       │   │   ├── dim_departments.py
-│       │   │   ├── dim_jobs.py
-│       │   │   └── fact_hired_employees.py
-│       │   └── gold/             # (Optional) Gold models if needed
-│       ├── schemas/              # Pydantic schemas
-│       │   ├── __init__.py
-│       │   ├── base.py           # Base schemas
-│       │   ├── department.py     # Department schemas
-│       │   ├── job.py           # Job schemas
-│       │   ├── hired_employee.py # Employee schemas
-│       │   ├── staging.py       # Staging schemas
-│       │   └── gold/            # Gold layer schemas
-│       │       ├── __init__.py
-│       │       └── metrics.py
-│       └── routes/              # API endpoints
-│           ├── __init__.py      # Router configuration
-│           ├── bronze/         # Bronze layer endpoints
-│           │   ├── __init__.py
-│           │   └── upload/     # Upload endpoints
-│           │       ├── __init__.py
-│           │       ├── departments_csv.py
-│           │       ├── jobs_csv.py
-│           │       └── hired_employees_csv.py
-│           ├── silver/        # Silver layer endpoints
-│           │   ├── __init__.py
-│           │   ├── merge/     # Merge endpoints
-│           │   │   ├── dim_departments.py
-│           │   │   ├── dim_jobs.py
-│           │   │   └── fact_hired_employees.py
-│           └── gold/         # Gold layer endpoints
-│               ├── __init__.py
-│               └── metrics.py
-├── docker/                     # Docker configuration
-│   ├── Dockerfile             # API service Dockerfile
-│   └── init.sql              # Database initialization script
-├── alembic/                   # Database migrations
-│   ├── versions/             # Migration versions
-│   │   └── db85176f4d91_create_bronze_and_silver_layers.py
-│   ├── env.py               # Alembic environment configuration
-│   └── script.py.mako       # Migration script template
-├── data/                     # Sample data files
+│   │   ├── config.py
+│   │   └── database.py
+│   ├── main.py
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── models/
+│   │   │   ├── __init__.py
+│   │   │   ├── bronze/
+│   │   │   │   ├── stg_departments.py
+│   │   │   │   ├── stg_hired_employees.py
+│   │   │   │   └── stg_jobs.py
+│   │   │   ├── silver/
+│   │   │   │   ├── dim_departments.py
+│   │   │   │   ├── dim_jobs.py
+│   │   │   │   └── fact_hired_employees.py
+│   │   │   └── gold/              # (empty or optional)
+│   │   ├── routes/
+│   │   │   ├── __init__.py
+│   │   │   ├── bronze/
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── upload/
+│   │   │   │       ├── departments_csv.py
+│   │   │   │       ├── hired_employees_csv.py
+│   │   │   │       └── jobs_csv.py
+│   │   │   ├── gold/
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── metrics.py
+│   │   │   └── silver/
+│   │   │       ├── __init__.py
+│   │   │       └── merge/
+│   │   │           ├── dim_departments.py
+│   │   │           ├── dim_jobs.py
+│   │   │           └── fact_hired_employees.py
+│   │   ├── schemas/
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py
+│   │   │   ├── department.py
+│   │   │   ├── gold/
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── metrics.py
+│   │   │   ├── hired_employee.py
+│   │   │   ├── job.py
+│   │   │   ├── staging.py
+│   │   │   └── gold/
+│   │   │       ├── __init__.py
+│   │   │       └── metrics.py
+├── data/
 │   ├── departments.csv
-│   ├── jobs.csv
-│   └── hired_employees.csv
-├── requirements.txt          # Python dependencies
-├── docker-compose.yml        # Docker services configuration
-├── alembic.ini              # Alembic configuration
-└── README.md                # Project documentation
+│   ├── hired_employees.csv
+│   └── jobs.csv
+├── docker/
+│   ├── Dockerfile
+│   └── init.sql
+├── docker-compose.yml
+├── requirements.txt
+├── app/tests/
+│   └── api/
+│       └── routes/
+│           └── bronze/
+│               └── upload/
+│                   ├── test_departments.py
+│                   ├── test_hired_employees.py
+│                   └── test_jobs.py
+├── .gitignore
+└── README.md
 ```
 
 Key Components:
