@@ -77,7 +77,7 @@ This project implements a data migration API following a **three-layer medallion
 ## Architecture Flow Diagram
 
 ```text
-Recruiter
+User
    │
    ├──► [departments.csv]
    ├──► [jobs.csv]
