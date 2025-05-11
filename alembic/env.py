@@ -9,12 +9,12 @@ import os
 import sys
 from dotenv import load_dotenv
 
-# Agregar el directorio raíz al path de Python
+# Add the root directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# Importar la clase base y los modelos
+# Import base class and models
 from app.core.database import base
-from app.api.models import *  # Importa todos los modelos (bronze, silver y gold)
+from app.api.models import *  # Import all models (bronze, silver and gold)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
